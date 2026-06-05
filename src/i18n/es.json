@@ -1,0 +1,268 @@
+{
+  "nav": {
+    "dashboard": "Tablero",
+    "improvements": "Mejoras",
+    "submit": "Registrar Mejora",
+    "leaderboard": "Clasificación",
+    "admin": "Administración",
+    "users": "Colaboradores",
+    "awards": "Premios"
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "next": "Siguiente",
+    "back": "Atrás",
+    "submit": "Enviar",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "view": "Ver",
+    "assign": "Asignar Puntos",
+    "points": "Puntos",
+    "area": "Área",
+    "name": "Nombre",
+    "status": "Estado",
+    "date": "Fecha",
+    "actions": "Acciones",
+    "search": "Buscar...",
+    "filter": "Filtrar",
+    "all": "Todos",
+    "none": "Ninguno",
+    "yes": "Sí",
+    "no": "No",
+    "optional": "Opcional",
+    "required": "Requerido",
+    "add": "Agregar",
+    "remove": "Eliminar"
+  },
+  "status": {
+    "draft": "Borrador",
+    "submitted": "Enviada",
+    "under_review": "En Revisión",
+    "approved": "Aprobada",
+    "implemented": "Implementada",
+    "rejected": "Rechazada"
+  },
+  "sqdcm": {
+    "S": "Seguridad",
+    "Q": "Calidad",
+    "D": "Entrega",
+    "C": "Costo",
+    "M": "Moral",
+    "impact": {
+      "high": "Alto impacto",
+      "medium": "Impacto medio",
+      "none": "Sin impacto"
+    }
+  },
+  "dashboard": {
+    "title": "Tablero",
+    "subtitle": "Resumen de Mejora Continua",
+    "totalImprovements": "Total Mejoras",
+    "implemented": "Implementadas",
+    "inProgress": "En Proceso",
+    "totalPoints": "Puntos Otorgados",
+    "byStatus": "Por Estado",
+    "byArea": "Por Área",
+    "bySQDCM": "Por Categoría SQDCM",
+    "monthlyTrend": "Tendencia Mensual",
+    "recentImprovements": "Mejoras Recientes",
+    "topContributors": "Mejores Contribuidores"
+  },
+  "improvements": {
+    "title": "Mejoras",
+    "new": "Nueva Mejora",
+    "noResults": "No se encontraron mejoras",
+    "filterByStatus": "Filtrar por estado",
+    "filterByArea": "Filtrar por área",
+    "totalParticipants": "Participantes"
+  },
+  "form": {
+    "step1": {
+      "title": "Portada",
+      "improvementName": "Nombre de la Mejora",
+      "area": "Área / Departamento",
+      "date": "Fecha",
+      "collaborators": "Colaborador(es)"
+    },
+    "step2": {
+      "title": "Descripción del Problema y SQDCM",
+      "problemDescription": "Descripción del Problema",
+      "problemDescriptionHint": "Describe de manera clara y concisa cuál es el problema detectado. ¿Qué está ocurriendo? ¿Dónde ocurre? ¿Con qué frecuencia?",
+      "sqdcmTargeted": "Categoría SQDCM a Atacar",
+      "expectedObjective": "Objetivo Esperado (SQDCM)",
+      "expectedObjectiveHint": "Indica cuál(es) indicador(es) del SQDCM se busca mejorar y por qué es prioritario atacar este problema ahora.",
+      "problemImpact": "Impacto del Problema",
+      "problemImpactHint": "¿Cuál es el impacto actual? Menciona áreas afectadas, frecuencia y consecuencias si no se atiende."
+    },
+    "step3": {
+      "title": "Estado Actual vs. Estado Deseado",
+      "currentState": "Estado Actual",
+      "currentStatePlaceholder": "Describe la situación actual",
+      "desiredState": "Estado Deseado",
+      "desiredStatePlaceholder": "Describe cómo debería verse la situación",
+      "addPoint": "Agregar punto",
+      "hint": "El estado deseado debe ser medible y alcanzable."
+    },
+    "step4": {
+      "title": "Equipo de Trabajo",
+      "selectUsers": "Seleccionar participantes",
+      "roleInProject": "Rol en el Proyecto",
+      "hint": "Selecciona todos los miembros del equipo que participaron en esta mejora."
+    },
+    "step5": {
+      "title": "Análisis de Causa Raíz",
+      "method": "Método de Análisis",
+      "fiveWhys": "5 ¿Por Qués?",
+      "ishikawa": "Diagrama de Ishikawa",
+      "why": "¿Por qué",
+      "answer": "Respuesta / Hallazgo",
+      "rootCause": "Causa Raíz",
+      "branch": "Rama",
+      "cause": "Causa",
+      "branches": {
+        "method": "Método",
+        "machine": "Máquina",
+        "manpower": "Mano de Obra",
+        "material": "Material",
+        "environment": "Medio Ambiente",
+        "measurement": "Medición"
+      },
+      "hint": "Elige el método que mejor se adapte a la complejidad del problema."
+    },
+    "step6": {
+      "title": "Lluvia de Ideas y Solución Elegida",
+      "solution": "Solución",
+      "description": "Descripción",
+      "impact": "Impacto (1-5)",
+      "ease": "Facilidad (1-5)",
+      "cost": "Costo (1-5)",
+      "risk": "Riesgo (1-5)",
+      "total": "Total",
+      "chosenSolution": "Solución Elegida para el Piloto",
+      "hint": "Lista al menos 3 posibles soluciones y elige la de mayor impacto y menor riesgo."
+    },
+    "step7": {
+      "title": "Desarrollo de la Mejora",
+      "planning": "Planificación",
+      "planningHint": "¿Qué se va a hacer? ¿Quién es responsable? Fecha inicio y fin.",
+      "resources": "Recursos Necesarios",
+      "resourcesHint": "Lista materiales, herramientas o personas necesarias.",
+      "implementation": "Implementación (Piloto)",
+      "implementationHint": "Describe cómo se llevó a cabo el piloto.",
+      "followup": "Seguimiento",
+      "followupHint": "¿Cómo se medirá el avance? ¿Quién revisa y con qué frecuencia?"
+    },
+    "step8": {
+      "title": "Nueva Condición del Área (Imágenes)",
+      "before": "Antes",
+      "after": "Después",
+      "uploadBefore": "Subir imagen Antes",
+      "uploadAfter": "Subir imagen Después",
+      "hint": "Incluye fotografías que muestren cómo funciona el área ahora con las mejoras implementadas."
+    },
+    "step9": {
+      "title": "Resultados y Nuevos Estándares",
+      "indicator": "Indicador",
+      "before": "Antes",
+      "after": "Después",
+      "improvementPct": "Mejora %",
+      "newStandards": "Nuevos Estándares Establecidos",
+      "addIndicator": "Agregar Indicador",
+      "addStandard": "Agregar Estándar"
+    },
+    "step10": {
+      "title": "Impacto en el SQDCM",
+      "describeImpact": "Describe el impacto de la mejora en este indicador",
+      "hint": "No todos los indicadores serán impactados. Marca solo los que realmente se ven afectados por la mejora."
+    },
+    "step11": {
+      "title": "Ciclo de Mejora Continua (PDCA)",
+      "plan": "Plan — ¿Qué pendientes quedan por planificar?",
+      "do": "Do — ¿Qué acciones pendientes de ejecutar?",
+      "check": "Check — ¿Qué métricas se deben monitorear?",
+      "act": "Act — ¿Cómo se estandariza? ¿Qué se replica?",
+      "nextSteps": "Próximos Pasos",
+      "responsible": "Responsable",
+      "commitmentDate": "Fecha Compromiso",
+      "followup": "Seguimiento"
+    }
+  },
+  "leaderboard": {
+    "title": "Clasificación Anual",
+    "subtitle": "Ranking de puntos por año",
+    "rank": "Posición",
+    "collaborator": "Colaborador",
+    "area": "Área",
+    "points": "Puntos",
+    "improvements": "Mejoras",
+    "year": "Año",
+    "noData": "Sin datos para este año"
+  },
+  "admin": {
+    "title": "Panel de Administración",
+    "pointConfig": "Configuración de Puntos",
+    "pointConfigSubtitle": "Establece los puntos por categoría SQDCM y nivel de impacto",
+    "category": "Categoría",
+    "highImpact": "Alto Impacto (pts)",
+    "mediumImpact": "Impacto Medio (pts)",
+    "saveConfig": "Guardar Configuración",
+    "assignPoints": "Asignar Puntos",
+    "improvement": "Mejora",
+    "participants": "Participantes",
+    "calculatedPoints": "Puntos Calculados",
+    "confirmAssign": "Confirmar Asignación",
+    "pointsAssigned": "Puntos asignados correctamente",
+    "updateStatus": "Actualizar Estado",
+    "awardsSection": "Gestión de Premios",
+    "newAward": "Nuevo Premio",
+    "editAward": "Editar Premio",
+    "awardName": "Nombre del Premio",
+    "awardDescription": "Descripción",
+    "awardCost": "Costo en Puntos",
+    "awardImage": "Imagen",
+    "awardStock": "Existencias (vacío = ilimitado)",
+    "awardActive": "Activo",
+    "deleteAwardConfirm": "¿Eliminar este premio?",
+    "redemptionsSection": "Canjes",
+    "newRedemption": "Registrar Canje",
+    "selectUser": "Seleccionar Colaborador",
+    "selectAward": "Seleccionar Premio",
+    "userBalance": "Saldo del Colaborador",
+    "notEnoughPoints": "Puntos insuficientes",
+    "outOfStockShort": "Agotado",
+    "markFulfilled": "Marcar Entregado",
+    "cancelRedemption": "Cancelar",
+    "notes": "Notas",
+    "redemptionRecorded": "Canje registrado",
+    "noRedemptions": "Aún no hay canjes"
+  },
+  "awards": {
+    "title": "Catálogo de Premios",
+    "subtitle": "Canjea tus puntos de mejora",
+    "cost": "Costo",
+    "stock": "Disponibles",
+    "outOfStock": "Agotado",
+    "unlimited": "Ilimitado",
+    "inactive": "Inactivo",
+    "noAwards": "Aún no hay premios disponibles"
+  },
+  "redemption": {
+    "pending": "Pendiente",
+    "fulfilled": "Entregado",
+    "cancelled": "Cancelado"
+  },
+  "users": {
+    "title": "Colaboradores",
+    "new": "Nuevo Colaborador",
+    "employeeNumber": "Número de Empleado",
+    "seniority": "Antigüedad",
+    "role": "Puesto",
+    "totalPoints": "Puntos Totales",
+    "edit": "Editar Colaborador",
+    "noUsers": "No se encontraron colaboradores"
+  }
+}

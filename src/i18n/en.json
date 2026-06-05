@@ -1,0 +1,268 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "improvements": "Improvements",
+    "submit": "Submit Improvement",
+    "leaderboard": "Leaderboard",
+    "admin": "Admin",
+    "users": "Users",
+    "awards": "Awards"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "next": "Next",
+    "back": "Back",
+    "submit": "Submit",
+    "edit": "Edit",
+    "delete": "Delete",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "view": "View",
+    "assign": "Assign Points",
+    "points": "Points",
+    "area": "Area",
+    "name": "Name",
+    "status": "Status",
+    "date": "Date",
+    "actions": "Actions",
+    "search": "Search...",
+    "filter": "Filter",
+    "all": "All",
+    "none": "None",
+    "yes": "Yes",
+    "no": "No",
+    "optional": "Optional",
+    "required": "Required",
+    "add": "Add",
+    "remove": "Remove"
+  },
+  "status": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "under_review": "Under Review",
+    "approved": "Approved",
+    "implemented": "Implemented",
+    "rejected": "Rejected"
+  },
+  "sqdcm": {
+    "S": "Safety",
+    "Q": "Quality",
+    "D": "Delivery",
+    "C": "Cost",
+    "M": "Morale",
+    "impact": {
+      "high": "High Impact",
+      "medium": "Medium Impact",
+      "none": "No Impact"
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Continuous Improvement Overview",
+    "totalImprovements": "Total Improvements",
+    "implemented": "Implemented",
+    "inProgress": "In Progress",
+    "totalPoints": "Points Awarded",
+    "byStatus": "By Status",
+    "byArea": "By Area",
+    "bySQDCM": "By SQDCM Category",
+    "monthlyTrend": "Monthly Trend",
+    "recentImprovements": "Recent Improvements",
+    "topContributors": "Top Contributors"
+  },
+  "improvements": {
+    "title": "Improvements",
+    "new": "New Improvement",
+    "noResults": "No improvements found",
+    "filterByStatus": "Filter by status",
+    "filterByArea": "Filter by area",
+    "totalParticipants": "Participants"
+  },
+  "form": {
+    "step1": {
+      "title": "Cover",
+      "improvementName": "Improvement Name",
+      "area": "Area / Department",
+      "date": "Date",
+      "collaborators": "Collaborator(s)"
+    },
+    "step2": {
+      "title": "Problem Description & SQDCM",
+      "problemDescription": "Problem Description",
+      "problemDescriptionHint": "Describe clearly and concisely what the problem is. What is happening? Where does it occur? How often?",
+      "sqdcmTargeted": "SQDCM Category to Address",
+      "expectedObjective": "Expected Objective (SQDCM)",
+      "expectedObjectiveHint": "Indicate which SQDCM indicator(s) you seek to improve and why it is a priority now.",
+      "problemImpact": "Problem Impact",
+      "problemImpactHint": "What is the current impact? Mention affected areas, frequency, and consequences if not addressed."
+    },
+    "step3": {
+      "title": "Current State vs. Desired State",
+      "currentState": "Current State",
+      "currentStatePlaceholder": "Describe the current situation",
+      "desiredState": "Desired State",
+      "desiredStatePlaceholder": "Describe how the situation should look",
+      "addPoint": "Add point",
+      "hint": "The desired state must be measurable and achievable."
+    },
+    "step4": {
+      "title": "Work Team",
+      "selectUsers": "Select participants",
+      "roleInProject": "Role in Project",
+      "hint": "Select all team members who participated in this improvement."
+    },
+    "step5": {
+      "title": "Root Cause Analysis",
+      "method": "Analysis Method",
+      "fiveWhys": "5 Whys",
+      "ishikawa": "Ishikawa Diagram",
+      "why": "Why",
+      "answer": "Answer / Finding",
+      "rootCause": "Root Cause",
+      "branch": "Branch",
+      "cause": "Cause",
+      "branches": {
+        "method": "Method",
+        "machine": "Machine",
+        "manpower": "Manpower",
+        "material": "Material",
+        "environment": "Environment",
+        "measurement": "Measurement"
+      },
+      "hint": "Choose the method that best fits the complexity of the problem."
+    },
+    "step6": {
+      "title": "Brainstorming & Chosen Solution",
+      "solution": "Solution",
+      "description": "Description",
+      "impact": "Impact (1-5)",
+      "ease": "Ease (1-5)",
+      "cost": "Cost (1-5)",
+      "risk": "Risk (1-5)",
+      "total": "Total",
+      "chosenSolution": "Chosen Solution for Pilot",
+      "hint": "List at least 3 possible solutions and select the one with the highest impact and lowest risk."
+    },
+    "step7": {
+      "title": "Improvement Development",
+      "planning": "Planning",
+      "planningHint": "What will be done? Who is responsible? Start and end date.",
+      "resources": "Required Resources",
+      "resourcesHint": "List materials, tools, or people needed.",
+      "implementation": "Implementation (Pilot)",
+      "implementationHint": "Describe how the pilot was carried out.",
+      "followup": "Follow-up",
+      "followupHint": "How will progress be measured? Who reviews and how often?"
+    },
+    "step8": {
+      "title": "New Area Condition (Images)",
+      "before": "Before",
+      "after": "After",
+      "uploadBefore": "Upload Before Image",
+      "uploadAfter": "Upload After Image",
+      "hint": "Include photos showing how the area looks now with the improvements implemented."
+    },
+    "step9": {
+      "title": "Results & New Standards",
+      "indicator": "Indicator",
+      "before": "Before",
+      "after": "After",
+      "improvementPct": "Improvement %",
+      "newStandards": "New Standards Established",
+      "addIndicator": "Add Indicator",
+      "addStandard": "Add Standard"
+    },
+    "step10": {
+      "title": "SQDCM Impact",
+      "describeImpact": "Describe the improvement's impact on this indicator",
+      "hint": "Not all indicators will be impacted. Only mark those truly affected by the improvement."
+    },
+    "step11": {
+      "title": "Continuous Improvement Cycle (PDCA)",
+      "plan": "Plan — What pending items need to be planned?",
+      "do": "Do — What actions are pending execution?",
+      "check": "Check — What metrics should be monitored?",
+      "act": "Act — How is it standardized? What is replicated?",
+      "nextSteps": "Next Steps",
+      "responsible": "Responsible",
+      "commitmentDate": "Commitment Date",
+      "followup": "Follow-up"
+    }
+  },
+  "leaderboard": {
+    "title": "Annual Leaderboard",
+    "subtitle": "Points ranking by year",
+    "rank": "Rank",
+    "collaborator": "Collaborator",
+    "area": "Area",
+    "points": "Points",
+    "improvements": "Improvements",
+    "year": "Year",
+    "noData": "No data for this year"
+  },
+  "admin": {
+    "title": "Admin Panel",
+    "pointConfig": "Point Configuration",
+    "pointConfigSubtitle": "Set points per SQDCM category and impact level",
+    "category": "Category",
+    "highImpact": "High Impact (pts)",
+    "mediumImpact": "Medium Impact (pts)",
+    "saveConfig": "Save Configuration",
+    "assignPoints": "Assign Points",
+    "improvement": "Improvement",
+    "participants": "Participants",
+    "calculatedPoints": "Calculated Points",
+    "confirmAssign": "Confirm Assignment",
+    "pointsAssigned": "Points successfully assigned",
+    "updateStatus": "Update Status",
+    "awardsSection": "Awards Management",
+    "newAward": "New Award",
+    "editAward": "Edit Award",
+    "awardName": "Award Name",
+    "awardDescription": "Description",
+    "awardCost": "Point Cost",
+    "awardImage": "Image",
+    "awardStock": "Stock (blank = unlimited)",
+    "awardActive": "Active",
+    "deleteAwardConfirm": "Delete this award?",
+    "redemptionsSection": "Redemptions",
+    "newRedemption": "Record Redemption",
+    "selectUser": "Select User",
+    "selectAward": "Select Award",
+    "userBalance": "User Balance",
+    "notEnoughPoints": "Not enough points",
+    "outOfStockShort": "Out of stock",
+    "markFulfilled": "Mark Fulfilled",
+    "cancelRedemption": "Cancel",
+    "notes": "Notes",
+    "redemptionRecorded": "Redemption recorded",
+    "noRedemptions": "No redemptions yet"
+  },
+  "awards": {
+    "title": "Awards Catalog",
+    "subtitle": "Redeem your improvement points",
+    "cost": "Cost",
+    "stock": "In stock",
+    "outOfStock": "Out of stock",
+    "unlimited": "Unlimited",
+    "inactive": "Inactive",
+    "noAwards": "No awards available yet"
+  },
+  "redemption": {
+    "pending": "Pending",
+    "fulfilled": "Fulfilled",
+    "cancelled": "Cancelled"
+  },
+  "users": {
+    "title": "Users",
+    "new": "New User",
+    "employeeNumber": "Employee Number",
+    "seniority": "Seniority",
+    "role": "Role",
+    "totalPoints": "Total Points",
+    "edit": "Edit User",
+    "noUsers": "No users found"
+  }
+}
