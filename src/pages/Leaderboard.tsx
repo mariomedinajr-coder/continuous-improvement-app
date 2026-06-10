@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Trophy } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import type { LeaderboardEntry, PointAssignment } from '../types'
+import type { LeaderboardEntry, TeamLeaderboardEntry, PointAssignment } from '../types'
 
 const CURRENT_YEAR = new Date().getFullYear()
+
+type Tab = 'individual' | 'teams'
 
 function MedalIcon({ rank }: { rank: number }) {
   if (rank === 1) return <Trophy size={20} className="text-yellow-500" />
@@ -16,7 +18,9 @@ function MedalIcon({ rank }: { rank: number }) {
 export default function Leaderboard() {
   const { t } = useTranslation()
   const [year, setYear] = useState(CURRENT_YEAR)
+  const [tab, setTab] = useState<Tab>('individual')
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
+  const [teamEntries, setTeamEntries] = useState<TeamLeaderboardEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -86,6 +90,88 @@ export default function Leaderboard() {
     fetchLeaderboard()
   }, [year])
 
+  useEffect(() => {
+    if (tab !== 'teams') return
+
+    async function fetchTeamLeaderboard() {
+      setLoading(true)
+      setError(null)
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('point_assignments')
+          .select('points, improvement_id, user:users(team_id, team:teams(id, name, area))')
+          .gte('created_at', `${year}-01-01`)
+          .lt('created_at', `${year + 1}-01-01`)
+
+        if (fetchError) throw fetchError
+
+        type Row = {
+          points: number
+          improvement_id: string
+          user: { team_id: string | null; team: { id: string; name: string; area: string } | null } | null
+        }
+        const rows = (data ?? []) as unknown as Row[]
+
+        const map = new Map<string, {
+          team_name: string
+          area: string
+          total_points: number
+          improvement_ids: Set<string>
+          member_ids: Set<string>
+        }>()
+
+        for (const row of rows) {
+          const team = row.user?.team
+          const teamId = row.user?.team_id
+          if (!team || !teamId) continue
+          const existing = map.get(teamId)
+          if (existing) {
+            existing.total_points += row.points
+            existing.improvement_ids.add(row.improvement_id)
+          } else {
+            map.set(teamId, {
+              team_name: team.name,
+              area: team.area,
+              total_points: row.points,
+              improvement_ids: new Set([row.improvement_id]),
+              member_ids: new Set(),
+            })
+          }
+        }
+
+        const { data: memberData } = await supabase
+          .from('users')
+          .select('id, team_id')
+          .not('team_id', 'is', null)
+
+        for (const m of (memberData ?? []) as { id: string; team_id: string }[]) {
+          map.get(m.team_id)?.member_ids.add(m.id)
+        }
+
+        const sorted: TeamLeaderboardEntry[] = Array.from(map.entries())
+          .map(([team_id, agg]) => ({
+            team_id,
+            team_name: agg.team_name,
+            area: agg.area,
+            total_points: agg.total_points,
+            members_count: agg.member_ids.size,
+            improvements_count: agg.improvement_ids.size,
+            rank: 0,
+          }))
+          .sort((a, b) => b.total_points - a.total_points)
+          .map((entry, idx) => ({ ...entry, rank: idx + 1 }))
+
+        setTeamEntries(sorted)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchTeamLeaderboard()
+  }, [year, tab])
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -115,6 +201,21 @@ export default function Leaderboard() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+        {(['individual', 'teams'] as Tab[]).map(tk => (
+          <button
+            key={tk}
+            onClick={() => setTab(tk)}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              tab === tk ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            {t(`leaderboard.tabs.${tk}`)}
+          </button>
+        ))}
+      </div>
+
       {/* Error */}
       {error && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
@@ -128,11 +229,12 @@ export default function Leaderboard() {
           <div className="flex items-center justify-center py-20 text-sm text-gray-500">
             {t('common.loading')}
           </div>
-        ) : entries.length === 0 ? (
-          <div className="flex items-center justify-center py-20 text-sm text-gray-400">
-            {t('leaderboard.noData')}
-          </div>
-        ) : (
+        ) : tab === 'individual' ? (
+          entries.length === 0 ? (
+            <div className="flex items-center justify-center py-20 text-sm text-gray-400">
+              {t('leaderboard.noData')}
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-100">
               <thead className="bg-gray-50">
@@ -191,6 +293,91 @@ export default function Leaderboard() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-gray-600">{entry.area}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <span className="text-sm text-gray-700">{entry.improvements_count}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <span className="inline-flex items-center gap-1 text-sm font-bold text-blue-700">
+                        {entry.total_points}
+                        <span className="text-xs font-normal text-blue-500">{t('common.points')}</span>
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          )
+        ) : teamEntries.length === 0 ? (
+          <div className="flex items-center justify-center py-20 text-sm text-gray-400">
+            {t('leaderboard.noData')}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-100">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">
+                    {t('leaderboard.rank')}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    {t('leaderboard.team')}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    {t('leaderboard.area')}
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    {t('leaderboard.membersCount')}
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    {t('leaderboard.improvements')}
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    {t('leaderboard.points')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {teamEntries.map((entry) => (
+                  <tr
+                    key={entry.team_id}
+                    className={
+                      entry.rank === 1
+                        ? 'bg-yellow-50 hover:bg-yellow-100'
+                        : entry.rank === 2
+                        ? 'bg-gray-50 hover:bg-gray-100'
+                        : entry.rank === 3
+                        ? 'bg-orange-50 hover:bg-orange-100'
+                        : 'hover:bg-gray-50'
+                    }
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <MedalIcon rank={entry.rank} />
+                        <span
+                          className={`text-sm font-bold ${
+                            entry.rank === 1
+                              ? 'text-yellow-600'
+                              : entry.rank === 2
+                              ? 'text-gray-500'
+                              : entry.rank === 3
+                              ? 'text-orange-600'
+                              : 'text-gray-700'
+                          }`}
+                        >
+                          #{entry.rank}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm font-semibold text-gray-900">{entry.team_name}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-600">{entry.area || '—'}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <span className="text-sm text-gray-700">{entry.members_count}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <span className="text-sm text-gray-700">{entry.improvements_count}</span>

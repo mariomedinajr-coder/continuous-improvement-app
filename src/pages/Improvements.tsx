@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { PlusCircle, Eye, Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { PlusCircle, Eye, Search, ChevronLeft, ChevronRight, Presentation } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/auth'
 import type { Improvement, ImprovementStatus } from '../types'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -46,16 +47,72 @@ function StatusBadge({ status }: { status: ImprovementStatus }) {
   )
 }
 
+function StatusSelect({
+  status,
+  onChange,
+  disabled,
+}: {
+  status: ImprovementStatus
+  onChange: (next: ImprovementStatus) => void
+  disabled?: boolean
+}) {
+  const { t } = useTranslation()
+  return (
+    <select
+      value={status}
+      onChange={(e) => onChange(e.target.value as ImprovementStatus)}
+      disabled={disabled}
+      className={`text-xs font-medium rounded-full px-2.5 py-1 pr-7 border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed ${STATUS_BADGE_CLASSES[status]}`}
+    >
+      {ALL_STATUSES.map((s) => (
+        <option key={s} value={s} className="bg-white text-gray-800">
+          {t(`status.${s}`)}
+        </option>
+      ))}
+    </select>
+  )
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export default function Improvements() {
   const { t } = useTranslation()
+  const { isManager } = useAuth()
 
   const [improvements, setImprovements] = useState<ImprovementWithCount[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ImprovementStatus | ''>('')
   const [page, setPage] = useState(1)
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [errorId, setErrorId] = useState<string | null>(null)
+
+  async function handleStatusChange(id: string, next: ImprovementStatus) {
+    const prev = improvements.find(i => i.id === id)?.status
+    if (!prev || prev === next) return
+
+    // Optimistic update
+    setImprovements(curr =>
+      curr.map(i => (i.id === id ? { ...i, status: next } : i)),
+    )
+    setSavingId(id)
+    setErrorId(null)
+
+    const { error } = await supabase
+      .from('improvements')
+      .update({ status: next })
+      .eq('id', id)
+
+    setSavingId(null)
+    if (error) {
+      // Rollback
+      setImprovements(curr =>
+        curr.map(i => (i.id === id ? { ...i, status: prev } : i)),
+      )
+      setErrorId(id)
+      setTimeout(() => setErrorId(null), 3000)
+    }
+  }
 
   // Fetch improvements with participant count
   useEffect(() => {
@@ -235,7 +292,20 @@ export default function Improvements() {
 
                         {/* Status */}
                         <td className="px-6 py-3 whitespace-nowrap">
-                          <StatusBadge status={imp.status} />
+                          {isManager ? (
+                            <div className="flex items-center gap-1.5">
+                              <StatusSelect
+                                status={imp.status}
+                                onChange={(next) => handleStatusChange(imp.id, next)}
+                                disabled={savingId === imp.id}
+                              />
+                              {errorId === imp.id && (
+                                <span className="text-xs text-red-600">!</span>
+                              )}
+                            </div>
+                          ) : (
+                            <StatusBadge status={imp.status} />
+                          )}
                         </td>
 
                         {/* Date */}
@@ -252,13 +322,23 @@ export default function Improvements() {
 
                         {/* Actions */}
                         <td className="px-6 py-3">
-                          <Link
-                            to={`/improvements/${imp.id}`}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-                          >
-                            <Eye size={13} />
-                            {t('common.view')}
-                          </Link>
+                          <div className="flex items-center gap-2">
+                            <Link
+                              to={`/improvements/${imp.id}`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                            >
+                              <Eye size={13} />
+                              {t('common.view')}
+                            </Link>
+                            <Link
+                              to={`/improvements/${imp.id}/present`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg hover:from-amber-600 hover:to-orange-600 shadow-sm transition-colors"
+                              title={t('improvements.present')}
+                            >
+                              <Presentation size={13} />
+                              {t('improvements.present')}
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     ))

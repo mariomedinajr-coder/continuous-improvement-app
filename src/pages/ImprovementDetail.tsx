@@ -41,7 +41,7 @@ export default function ImprovementDetail() {
     if (!id) return
     Promise.all([
       supabase.from('improvements').select('*').eq('id', id).single(),
-      supabase.from('improvement_participants').select('*, user:users(id,name,area,role)').eq('improvement_id', id),
+      supabase.from('improvement_participants').select('*, user:users(id,name,area,job_title)').eq('improvement_id', id),
       supabase.from('point_assignments').select('*, user:users(id,name,area)').eq('improvement_id', id),
     ]).then(([{ data: imp }, { data: parts }, { data: assigns }]) => {
       if (imp) setImprovement(imp as Improvement)

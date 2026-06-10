@@ -2,16 +2,39 @@ export type SQDCMCategory = 'S' | 'Q' | 'D' | 'C' | 'M'
 export type ImpactLevel = 'high' | 'medium' | 'none'
 export type ImprovementStatus = 'draft' | 'submitted' | 'under_review' | 'approved' | 'implemented' | 'rejected'
 export type RootCauseMethod = '5whys' | 'ishikawa'
+export type UserRole = 'admin' | 'manager' | 'viewer'
 
 export interface User {
   id: string
   name: string
   area: string
-  role: string
+  job_title: string
   seniority: string
   employee_number: string
+  email: string | null
+  role: UserRole
+  auth_id: string | null
+  is_active: boolean
   total_points: number
   spent_points: number
+  team_id: string | null
+  created_at: string
+}
+
+export interface Team {
+  id: string
+  name: string
+  area: string
+  created_at: string
+}
+
+export interface StatusHistoryEntry {
+  id: string
+  improvement_id: string
+  from_status: ImprovementStatus | null
+  to_status: ImprovementStatus
+  changed_by: string | null
+  comment: string
   created_at: string
 }
 
@@ -87,7 +110,10 @@ export interface Improvement {
   result_indicators: ResultIndicator[]
   new_standards: string[]
   // Step 11 - SQDCM Impact
-  sqdcm_impact: SQDCMImpact[]
+  sqdcm_impact: SQDCMImpact[]         // authoritative (set by manager)
+  submitter_impact: SQDCMImpact[]     // submitter's suggestion (form Step 10)
+  evaluated_by: string | null
+  evaluated_at: string | null
   // Step 12 - PDCA
   pdca_plan: string
   pdca_do: string
@@ -126,6 +152,16 @@ export interface LeaderboardEntry {
   user_name: string
   area: string
   total_points: number
+  improvements_count: number
+  rank: number
+}
+
+export interface TeamLeaderboardEntry {
+  team_id: string
+  team_name: string
+  area: string
+  total_points: number
+  members_count: number
   improvements_count: number
   rank: number
 }

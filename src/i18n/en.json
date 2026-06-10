@@ -6,6 +6,7 @@
     "leaderboard": "Leaderboard",
     "admin": "Admin",
     "users": "Users",
+    "teams": "Teams",
     "awards": "Awards"
   },
   "common": {
@@ -78,7 +79,31 @@
     "noResults": "No improvements found",
     "filterByStatus": "Filter by status",
     "filterByArea": "Filter by area",
-    "totalParticipants": "Participants"
+    "totalParticipants": "Participants",
+    "present": "Present"
+  },
+  "present": {
+    "title": "Improvement Presentation",
+    "exit": "Exit",
+    "notProvided": "Not provided",
+    "noPointsYet": "Points have not been assigned yet",
+    "thanksMessage": "Thank you for driving continuous improvement",
+    "recognitionTitle": "Recognition"
+  },
+  "auth": {
+    "signInTitle": "Sign in",
+    "signInSubtitle": "Welcome back. Sign in to continue.",
+    "signInButton": "Sign in",
+    "signOut": "Sign out",
+    "email": "Email",
+    "password": "Password",
+    "invalidCredentials": "Invalid email or password",
+    "contactAdmin": "Don't have an account? Contact your administrator.",
+    "role": {
+      "admin": "Administrator",
+      "manager": "Manager",
+      "viewer": "Collaborator"
+    }
   },
   "form": {
     "step1": {
@@ -200,7 +225,25 @@
     "points": "Points",
     "improvements": "Improvements",
     "year": "Year",
-    "noData": "No data for this year"
+    "noData": "No data for this year",
+    "tabs": {
+      "individual": "Individual",
+      "teams": "Teams"
+    },
+    "team": "Team",
+    "membersCount": "Members"
+  },
+  "teams": {
+    "title": "Teams",
+    "new": "New Team",
+    "edit": "Edit Team",
+    "name": "Team Name",
+    "members": "Members",
+    "noTeams": "No teams yet",
+    "deleteConfirm": "Delete this team? Members will be unassigned.",
+    "errors": {
+      "nameRequired": "Team name is required"
+    }
   },
   "admin": {
     "title": "Admin Panel",
@@ -210,12 +253,35 @@
     "highImpact": "High Impact (pts)",
     "mediumImpact": "Medium Impact (pts)",
     "saveConfig": "Save Configuration",
-    "assignPoints": "Assign Points",
+    "assignPoints": "Evaluate & Assign Points",
+    "evaluateImpact": "Evaluate Impact",
+    "evaluateAndAssign": "Evaluate & Assign",
+    "managerImpactDecision": "Manager's Impact Assessment",
+    "managerImpactHint": "Select the actual impact per category",
+    "submitterSuggested": "Submitter suggested",
+    "impactDescriptionPlaceholder": "Brief description of the impact (optional)",
+    "perParticipant": "per selected participant",
+    "evaluated": "Evaluated",
+    "pendingEvaluation": "Pending evaluation",
+    "reevaluate": "Re-evaluate",
+    "reevaluation": "Re-evaluation",
+    "confirmReevaluate": "Confirm Re-evaluation",
+    "confirmReevaluatePrompt": "This will replace the current impact and point assignments. Continue?",
+    "reevaluationWarning": "This is a re-evaluation. Existing points for this improvement will be deleted and replaced.",
     "improvement": "Improvement",
     "participants": "Participants",
     "calculatedPoints": "Calculated Points",
     "confirmAssign": "Confirm Assignment",
     "pointsAssigned": "Points successfully assigned",
+    "filter": {
+      "pending": "Pending",
+      "evaluated": "Evaluated",
+      "all": "All"
+    },
+    "errors": {
+      "noParticipants": "Select at least one participant.",
+      "noImpact": "Set at least one impact level above 'None'."
+    },
     "updateStatus": "Update Status",
     "awardsSection": "Awards Management",
     "newAward": "New Award",
@@ -260,9 +326,45 @@
     "new": "New User",
     "employeeNumber": "Employee Number",
     "seniority": "Seniority",
-    "role": "Role",
+    "role": "Job Title",
+    "systemRole": "System Role",
+    "team": "Team",
+    "noTeam": "— No team —",
     "totalPoints": "Total Points",
     "edit": "Edit User",
-    "noUsers": "No users found"
+    "noUsers": "No users found",
+    "tempPassword": "Temporary password",
+    "tempPasswordHint": "Share this with the user. They should change it after first login.",
+    "regenerate": "Regenerate",
+    "createdTitle": "User created",
+    "createdSubtitle": "Send these credentials to the new user. They will need to change the password after first login.",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "active": "Active",
+    "inactive": "Inactive",
+    "status": "Status",
+    "you": "you",
+    "confirmDemoteSelf": "Are you sure you want to remove your own admin role? You will lose access.",
+    "cannotDeactivateSelf": "You cannot deactivate your own account.",
+    "errors": {
+      "nameRequired": "Name is required",
+      "emailRequired": "Email is required",
+      "passwordShort": "Password must be at least 8 characters"
+    },
+    "history": {
+      "button": "History",
+      "earned": "Earned",
+      "spent": "Spent",
+      "submitted": "Submitted",
+      "participated": "Participated",
+      "empty": "No activity yet.",
+      "types": {
+        "submitted": "Submitted improvement",
+        "participated": "Participated in",
+        "points_received": "Points received",
+        "redeemed": "Redeemed award",
+        "status_changed": "Status change"
+      }
+    }
   }
 }

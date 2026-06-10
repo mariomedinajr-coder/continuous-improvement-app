@@ -2,17 +2,33 @@
 create extension if not exists "uuid-ossp";
 
 -- Users / Collaborators
+-- auth_id links a profile to a Supabase Auth account (null = no login, legacy/imported).
 create table users (
   id uuid primary key default uuid_generate_v4(),
   name text not null,
   area text not null,
-  role text not null default '',
+  job_title text not null default '',
   seniority text not null default '',
   employee_number text not null default '',
   total_points integer not null default 0,
   spent_points integer not null default 0,
+  auth_id uuid unique references auth.users(id) on delete set null,
+  email text,
+  is_active boolean not null default true,
+  role text not null default 'viewer' check (role in ('admin','manager','viewer')),
   created_at timestamptz not null default now()
 );
+
+-- Teams (points pool) — a user belongs to at most one team; null = unassigned
+create table teams (
+  id uuid primary key default uuid_generate_v4(),
+  name text not null,
+  area text not null default '',
+  created_at timestamptz not null default now()
+);
+
+alter table users
+  add column if not exists team_id uuid references teams(id) on delete set null;
 
 -- SQDCM Point Configuration (set by manager)
 create table sqdcm_point_config (
@@ -66,6 +82,7 @@ create table improvements (
   new_standards text[] not null default '{}',
   -- Step 10: SQDCM Impact
   sqdcm_impact jsonb not null default '[]',
+  submitter_impact jsonb not null default '[]',
   -- Step 11: PDCA
   pdca_plan text not null default '',
   pdca_do text not null default '',
@@ -76,6 +93,8 @@ create table improvements (
   next_steps_followup text not null default '',
   -- Meta
   created_by uuid references users(id),
+  evaluated_by uuid references users(id) on delete set null,
+  evaluated_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -100,6 +119,17 @@ create table point_assignments (
   unique (improvement_id, user_id)
 );
 
+-- Audit log of improvement status transitions (written by trigger only)
+create table status_history (
+  id uuid primary key default uuid_generate_v4(),
+  improvement_id uuid not null references improvements(id) on delete cascade,
+  from_status text,
+  to_status text,
+  changed_by uuid references users(id),
+  comment text not null default '',
+  created_at timestamptz not null default now()
+);
+
 -- Auto-update updated_at
 create or replace function update_updated_at()
 returns trigger as $$
@@ -112,6 +142,30 @@ $$ language plpgsql;
 create trigger improvements_updated_at
   before update on improvements
   for each row execute function update_updated_at();
+
+-- Log status changes to status_history. SECURITY DEFINER so the audit row is
+-- written even when the acting user has no direct insert rights on the table.
+create or replace function log_status_change()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  uid uuid;
+begin
+  if old.status is distinct from new.status then
+    select id into uid from public.users where auth_id = auth.uid() limit 1;
+    insert into public.status_history (improvement_id, from_status, to_status, changed_by)
+    values (new.id, old.status, new.status, uid);
+  end if;
+  return new;
+end;
+$$;
+
+create trigger improvements_status_log
+  after update of status on improvements
+  for each row execute function log_status_change();
 
 -- Auto-sync users.total_points (current balance = earned - held) and spent_points.
 -- Fires for both point_assignments (earnings) and award_redemptions (spending).
@@ -254,21 +308,219 @@ create trigger award_redemptions_sync
   for each row execute function sync_user_points();
 
 -- ============================================================
--- ROW LEVEL SECURITY
--- This Supabase project force-enables RLS on every new table.
--- The app has no auth, so grant the anon/authenticated roles full
--- access via permissive policies (otherwise all queries return empty).
+-- AUTH HELPERS
+-- Resolve the calling Supabase Auth user to their app profile. SECURITY DEFINER
+-- + stable so RLS policies can call them without recursive policy evaluation.
 -- ============================================================
-do $$
-declare t text;
+create or replace function public."current_role"()
+returns text
+language sql
+stable
+security definer
+set search_path to 'public'
+as $$
+  select role from public.users where auth_id = auth.uid() limit 1;
+$$;
+
+create or replace function public.current_user_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path to 'public'
+as $$
+  select id from public.users where auth_id = auth.uid() limit 1;
+$$;
+
+-- Admin-only user provisioning: creates the Supabase Auth account (+ identity)
+-- and the matching public.users profile in one call. Returns the new profile id.
+create or replace function public.admin_create_user(
+  p_email text,
+  p_password text,
+  p_name text,
+  p_area text default '',
+  p_job_title text default '',
+  p_seniority text default '',
+  p_employee_number text default '',
+  p_role text default 'viewer'
+)
+returns uuid
+language plpgsql
+security definer
+set search_path to 'public', 'auth', 'extensions'
+as $$
+declare
+  v_caller_role text;
+  v_user_id uuid;
+  v_users_id uuid;
 begin
-  foreach t in array array['users','sqdcm_point_config','improvements','improvement_participants','point_assignments','awards','award_redemptions']
-  loop
-    execute format('alter table public.%I enable row level security', t);
-    execute format('drop policy if exists public_all on public.%I', t);
-    execute format('create policy public_all on public.%I for all to anon, authenticated using (true) with check (true)', t);
-  end loop;
-end $$;
+  -- Authorize: only admin can create users
+  select role into v_caller_role from public.users where auth_id = auth.uid();
+  if v_caller_role is null or v_caller_role <> 'admin' then
+    raise exception 'Forbidden: admin role required';
+  end if;
+
+  if p_role not in ('admin','manager','viewer') then
+    raise exception 'Invalid role: %', p_role;
+  end if;
+
+  if length(coalesce(p_password,'')) < 8 then
+    raise exception 'Password must be at least 8 characters';
+  end if;
+
+  if exists (select 1 from auth.users where email = p_email) then
+    raise exception 'Email already in use';
+  end if;
+
+  v_user_id := gen_random_uuid();
+
+  insert into auth.users (
+    instance_id, id, aud, role, email, encrypted_password,
+    email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+    created_at, updated_at,
+    confirmation_token, email_change, email_change_token_new, recovery_token,
+    is_super_admin, is_anonymous
+  )
+  values (
+    '00000000-0000-0000-0000-000000000000',
+    v_user_id, 'authenticated', 'authenticated',
+    p_email, extensions.crypt(p_password, extensions.gen_salt('bf')),
+    now(),
+    jsonb_build_object('provider','email','providers',array['email']),
+    '{}'::jsonb,
+    now(), now(),
+    '', '', '', '',
+    false, false
+  );
+
+  insert into auth.identities (
+    id, user_id, identity_data, provider, provider_id,
+    last_sign_in_at, created_at, updated_at
+  )
+  values (
+    gen_random_uuid(), v_user_id,
+    jsonb_build_object('sub', v_user_id::text, 'email', p_email, 'email_verified', true),
+    'email', v_user_id::text,
+    now(), now(), now()
+  );
+
+  insert into public.users (name, area, job_title, seniority, employee_number, email, role, auth_id, is_active)
+  values (p_name, p_area, p_job_title, p_seniority, p_employee_number, p_email, p_role, v_user_id, true)
+  returning id into v_users_id;
+
+  return v_users_id;
+end;
+$$;
+
+-- ============================================================
+-- ROW LEVEL SECURITY
+-- Reads are public (everyone signed in can browse). Writes are gated by role
+-- via current_role()/current_user_id(). status_history is written only by the
+-- log_status_change() trigger, so it has no write policy.
+-- ============================================================
+alter table users enable row level security;
+alter table teams enable row level security;
+alter table sqdcm_point_config enable row level security;
+alter table improvements enable row level security;
+alter table improvement_participants enable row level security;
+alter table point_assignments enable row level security;
+alter table awards enable row level security;
+alter table award_redemptions enable row level security;
+alter table status_history enable row level security;
+
+-- users
+drop policy if exists users_select on users;
+create policy users_select on users for select using (true);
+drop policy if exists users_admin_write on users;
+create policy users_admin_write on users for all
+  using (public."current_role"() = 'admin')
+  with check (public."current_role"() = 'admin');
+
+-- teams (open management for now)
+drop policy if exists public_all on teams;
+create policy public_all on teams for all using (true) with check (true);
+
+-- sqdcm_point_config
+drop policy if exists sqdcm_select on sqdcm_point_config;
+create policy sqdcm_select on sqdcm_point_config for select using (true);
+drop policy if exists sqdcm_admin_write on sqdcm_point_config;
+create policy sqdcm_admin_write on sqdcm_point_config for all
+  using (public."current_role"() = 'admin')
+  with check (public."current_role"() = 'admin');
+
+-- improvements
+drop policy if exists improvements_select on improvements;
+create policy improvements_select on improvements for select using (true);
+drop policy if exists improvements_insert on improvements;
+create policy improvements_insert on improvements for insert
+  with check (
+    created_by is null
+    or created_by = public.current_user_id()
+    or public."current_role"() in ('admin','manager')
+  );
+drop policy if exists improvements_update on improvements;
+create policy improvements_update on improvements for update
+  using (
+    public."current_role"() in ('admin','manager')
+    or (created_by = public.current_user_id() and status = 'draft')
+  )
+  with check (
+    public."current_role"() in ('admin','manager')
+    or (created_by = public.current_user_id() and status = 'draft')
+  );
+drop policy if exists improvements_delete on improvements;
+create policy improvements_delete on improvements for delete
+  using (public."current_role"() = 'admin');
+
+-- improvement_participants
+drop policy if exists participants_select on improvement_participants;
+create policy participants_select on improvement_participants for select using (true);
+drop policy if exists participants_write on improvement_participants;
+create policy participants_write on improvement_participants for all
+  using (
+    public."current_role"() in ('admin','manager')
+    or exists (
+      select 1 from improvements i
+      where i.id = improvement_participants.improvement_id
+        and i.created_by = public.current_user_id()
+    )
+  )
+  with check (
+    public."current_role"() in ('admin','manager')
+    or exists (
+      select 1 from improvements i
+      where i.id = improvement_participants.improvement_id
+        and i.created_by = public.current_user_id()
+    )
+  );
+
+-- point_assignments
+drop policy if exists points_select on point_assignments;
+create policy points_select on point_assignments for select using (true);
+drop policy if exists points_manager_write on point_assignments;
+create policy points_manager_write on point_assignments for all
+  using (public."current_role"() in ('admin','manager'))
+  with check (public."current_role"() in ('admin','manager'));
+
+-- awards
+drop policy if exists awards_select on awards;
+create policy awards_select on awards for select using (true);
+drop policy if exists awards_admin_write on awards;
+create policy awards_admin_write on awards for all
+  using (public."current_role"() = 'admin')
+  with check (public."current_role"() = 'admin');
+
+-- award_redemptions
+drop policy if exists redemptions_select on award_redemptions;
+create policy redemptions_select on award_redemptions for select using (true);
+drop policy if exists redemptions_manager_write on award_redemptions;
+create policy redemptions_manager_write on award_redemptions for all
+  using (public."current_role"() in ('admin','manager'))
+  with check (public."current_role"() in ('admin','manager'));
+
+-- status_history (read-only to clients; rows inserted by trigger)
+drop policy if exists status_history_select on status_history;
+create policy status_history_select on status_history for select using (true);
 
 -- Storage buckets for improvement before/after images and award images.
 insert into storage.buckets (id, name, public) values

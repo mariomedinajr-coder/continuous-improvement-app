@@ -2,12 +2,22 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  LayoutDashboard, TrendingUp, PlusCircle, Trophy, Settings, Users, Gift, Menu, X, Globe,
+  LayoutDashboard, TrendingUp, PlusCircle, Trophy, Settings, Users, UsersRound, Gift, Menu, X, Globe, LogOut,
 } from 'lucide-react'
+import { useAuth } from '../../lib/auth'
+import type { UserRole } from '../../types'
+
+interface NavLink {
+  to: string
+  label: string
+  icon: typeof LayoutDashboard
+  roles?: UserRole[]
+}
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { t, i18n } = useTranslation()
   const location = useLocation()
+  const { profile, signOut } = useAuth()
   const [open, setOpen] = useState(false)
 
   const toggleLang = () => {
@@ -16,15 +26,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     localStorage.setItem('lang', next)
   }
 
-  const links = [
-    { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
-    { to: '/improvements', label: t('nav.improvements'), icon: TrendingUp },
-    { to: '/improvements/new', label: t('nav.submit'), icon: PlusCircle },
-    { to: '/leaderboard', label: t('nav.leaderboard'), icon: Trophy },
-    { to: '/awards', label: t('nav.awards'), icon: Gift },
-    { to: '/admin', label: t('nav.admin'), icon: Settings },
-    { to: '/users', label: t('nav.users'), icon: Users },
+  const allLinks: NavLink[] = [
+    { to: '/',                label: t('nav.dashboard'),    icon: LayoutDashboard },
+    { to: '/improvements',    label: t('nav.improvements'), icon: TrendingUp },
+    { to: '/improvements/new',label: t('nav.submit'),       icon: PlusCircle },
+    { to: '/leaderboard',     label: t('nav.leaderboard'),  icon: Trophy },
+    { to: '/awards',          label: t('nav.awards'),       icon: Gift },
+    { to: '/admin',           label: t('nav.admin'),        icon: Settings, roles: ['admin', 'manager'] },
+    { to: '/users',           label: t('nav.users'),        icon: Users,    roles: ['admin'] },
+    { to: '/teams',           label: t('nav.teams'),        icon: UsersRound, roles: ['admin'] },
   ]
+
+  const links = allLinks.filter(l => !l.roles || (profile && l.roles.includes(profile.role)))
+
+  const initials = profile?.name?.split(' ').map(p => p.charAt(0)).slice(0, 2).join('').toUpperCase() ?? '?'
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -55,7 +70,30 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             )
           })}
         </nav>
-        <div className="px-3 py-4 border-t border-gray-100">
+
+        {/* User block */}
+        {profile && (
+          <div className="px-3 py-3 border-t border-gray-100 space-y-1">
+            <div className="flex items-center gap-3 px-2 py-2">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-gray-800 truncate">{profile.name}</p>
+                <p className="text-xs text-gray-400 truncate">{t(`auth.role.${profile.role}`)}</p>
+              </div>
+            </div>
+            <button
+              onClick={signOut}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-red-50 hover:text-red-700 w-full transition-colors"
+            >
+              <LogOut size={16} />
+              {t('auth.signOut')}
+            </button>
+          </div>
+        )}
+
+        <div className="px-3 py-3 border-t border-gray-100">
           <button
             onClick={toggleLang}
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50 w-full"
@@ -87,8 +125,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile menu */}
       {open && (
         <div className="lg:hidden fixed inset-0 z-20 bg-black/30" onClick={() => setOpen(false)}>
-          <div className="bg-white w-64 h-full shadow-xl pt-16" onClick={e => e.stopPropagation()}>
-            <nav className="px-3 py-4 space-y-1">
+          <div className="bg-white w-64 h-full shadow-xl pt-16 flex flex-col" onClick={e => e.stopPropagation()}>
+            <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
               {links.map(({ to, label, icon: Icon }) => (
                 <Link
                   key={to}
@@ -101,6 +139,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </Link>
               ))}
             </nav>
+            {profile && (
+              <div className="border-t border-gray-100 p-3 space-y-1">
+                <div className="flex items-center gap-3 px-2 py-2">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold flex items-center justify-center text-xs">
+                    {initials}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{profile.name}</p>
+                    <p className="text-xs text-gray-400 truncate">{t(`auth.role.${profile.role}`)}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setOpen(false); signOut() }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-red-50 hover:text-red-700 w-full"
+                >
+                  <LogOut size={16} />
+                  {t('auth.signOut')}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

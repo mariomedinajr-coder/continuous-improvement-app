@@ -6,6 +6,7 @@
     "leaderboard": "Clasificación",
     "admin": "Administración",
     "users": "Colaboradores",
+    "teams": "Equipos",
     "awards": "Premios"
   },
   "common": {
@@ -78,7 +79,31 @@
     "noResults": "No se encontraron mejoras",
     "filterByStatus": "Filtrar por estado",
     "filterByArea": "Filtrar por área",
-    "totalParticipants": "Participantes"
+    "totalParticipants": "Participantes",
+    "present": "Presentar"
+  },
+  "present": {
+    "title": "Presentación de Mejora",
+    "exit": "Salir",
+    "notProvided": "No proporcionado",
+    "noPointsYet": "Aún no se han asignado puntos",
+    "thanksMessage": "Gracias por impulsar la mejora continua",
+    "recognitionTitle": "Reconocimiento"
+  },
+  "auth": {
+    "signInTitle": "Iniciar sesión",
+    "signInSubtitle": "Bienvenido. Ingresa para continuar.",
+    "signInButton": "Iniciar sesión",
+    "signOut": "Cerrar sesión",
+    "email": "Correo",
+    "password": "Contraseña",
+    "invalidCredentials": "Correo o contraseña incorrectos",
+    "contactAdmin": "¿No tienes cuenta? Contacta a tu administrador.",
+    "role": {
+      "admin": "Administrador",
+      "manager": "Gerente",
+      "viewer": "Colaborador"
+    }
   },
   "form": {
     "step1": {
@@ -200,7 +225,25 @@
     "points": "Puntos",
     "improvements": "Mejoras",
     "year": "Año",
-    "noData": "Sin datos para este año"
+    "noData": "Sin datos para este año",
+    "tabs": {
+      "individual": "Individual",
+      "teams": "Equipos"
+    },
+    "team": "Equipo",
+    "membersCount": "Miembros"
+  },
+  "teams": {
+    "title": "Equipos",
+    "new": "Nuevo equipo",
+    "edit": "Editar equipo",
+    "name": "Nombre del equipo",
+    "members": "Miembros",
+    "noTeams": "Aún no hay equipos",
+    "deleteConfirm": "¿Eliminar este equipo? Los miembros quedarán sin equipo.",
+    "errors": {
+      "nameRequired": "El nombre del equipo es obligatorio"
+    }
   },
   "admin": {
     "title": "Panel de Administración",
@@ -210,12 +253,35 @@
     "highImpact": "Alto Impacto (pts)",
     "mediumImpact": "Impacto Medio (pts)",
     "saveConfig": "Guardar Configuración",
-    "assignPoints": "Asignar Puntos",
+    "assignPoints": "Evaluar y Asignar Puntos",
+    "evaluateImpact": "Evaluar Impacto",
+    "evaluateAndAssign": "Evaluar y Asignar",
+    "managerImpactDecision": "Evaluación del Gerente",
+    "managerImpactHint": "Selecciona el impacto real por categoría",
+    "submitterSuggested": "Sugerencia del colaborador",
+    "impactDescriptionPlaceholder": "Descripción breve del impacto (opcional)",
+    "perParticipant": "por participante seleccionado",
+    "evaluated": "Evaluada",
+    "pendingEvaluation": "Pendiente de evaluación",
+    "reevaluate": "Re-evaluar",
+    "reevaluation": "Re-evaluación",
+    "confirmReevaluate": "Confirmar Re-evaluación",
+    "confirmReevaluatePrompt": "Esto reemplazará el impacto actual y los puntos asignados. ¿Continuar?",
+    "reevaluationWarning": "Esta es una re-evaluación. Los puntos existentes para esta mejora se eliminarán y reemplazarán.",
     "improvement": "Mejora",
     "participants": "Participantes",
     "calculatedPoints": "Puntos Calculados",
     "confirmAssign": "Confirmar Asignación",
     "pointsAssigned": "Puntos asignados correctamente",
+    "filter": {
+      "pending": "Pendientes",
+      "evaluated": "Evaluadas",
+      "all": "Todas"
+    },
+    "errors": {
+      "noParticipants": "Selecciona al menos un participante.",
+      "noImpact": "Establece al menos un impacto distinto de 'Ninguno'."
+    },
     "updateStatus": "Actualizar Estado",
     "awardsSection": "Gestión de Premios",
     "newAward": "Nuevo Premio",
@@ -261,8 +327,44 @@
     "employeeNumber": "Número de Empleado",
     "seniority": "Antigüedad",
     "role": "Puesto",
+    "systemRole": "Rol de Sistema",
+    "team": "Equipo",
+    "noTeam": "— Sin equipo —",
     "totalPoints": "Puntos Totales",
     "edit": "Editar Colaborador",
-    "noUsers": "No se encontraron colaboradores"
+    "noUsers": "No se encontraron colaboradores",
+    "tempPassword": "Contraseña temporal",
+    "tempPasswordHint": "Compártela con el colaborador. Deberá cambiarla después de iniciar sesión.",
+    "regenerate": "Regenerar",
+    "createdTitle": "Colaborador creado",
+    "createdSubtitle": "Envía estas credenciales al nuevo colaborador. Deberá cambiar la contraseña después de iniciar sesión.",
+    "copy": "Copiar",
+    "copied": "¡Copiado!",
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "status": "Estado",
+    "you": "tú",
+    "confirmDemoteSelf": "¿Seguro que quieres quitarte el rol de administrador? Perderás acceso.",
+    "cannotDeactivateSelf": "No puedes desactivar tu propia cuenta.",
+    "errors": {
+      "nameRequired": "El nombre es requerido",
+      "emailRequired": "El correo es requerido",
+      "passwordShort": "La contraseña debe tener al menos 8 caracteres"
+    },
+    "history": {
+      "button": "Historial",
+      "earned": "Ganados",
+      "spent": "Gastados",
+      "submitted": "Registradas",
+      "participated": "Participación",
+      "empty": "Sin actividad aún.",
+      "types": {
+        "submitted": "Mejora registrada",
+        "participated": "Participación en",
+        "points_received": "Puntos recibidos",
+        "redeemed": "Premio canjeado",
+        "status_changed": "Cambio de estado"
+      }
+    }
   }
 }

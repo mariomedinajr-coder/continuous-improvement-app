@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ChevronRight, ChevronLeft, Check, Upload, X, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/auth'
 import type { User, SQDCMCategory, ImpactLevel, FiveWhy, IshikawaCause, Solution, ResultIndicator, SQDCMImpact } from '../types'
 
 const SQDCM_CATEGORIES: SQDCMCategory[] = ['S', 'Q', 'D', 'C', 'M']
@@ -134,6 +135,7 @@ function TextInput({ label, value, onChange, type = 'text' }: {
 export default function ImprovementForm() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { profile } = useAuth()
   const [step, setStep] = useState(0)
   const [form, setForm] = useState<FormData>(defaultForm())
   const [users, setUsers] = useState<User[]>([])
@@ -172,6 +174,7 @@ export default function ImprovementForm() {
         area: form.area,
         date_submitted: form.date_submitted,
         status: 'submitted',
+        created_by: profile?.id ?? null,
         problem_description: form.problem_description,
         sqdcm_targeted: form.sqdcm_targeted,
         expected_objective: form.expected_objective,
@@ -191,7 +194,7 @@ export default function ImprovementForm() {
         after_images: form.after_images,
         result_indicators: form.result_indicators,
         new_standards: form.new_standards.filter(Boolean),
-        sqdcm_impact: form.sqdcm_impact,
+        submitter_impact: form.sqdcm_impact,
         pdca_plan: form.pdca_plan,
         pdca_do: form.pdca_do,
         pdca_check: form.pdca_check,
@@ -327,7 +330,7 @@ export default function ImprovementForm() {
               />
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-800">{u.name}</p>
-                <p className="text-xs text-gray-400">{u.area} · {u.role}</p>
+                <p className="text-xs text-gray-400">{u.area} · {u.job_title}</p>
               </div>
               {selected && (
                 <input

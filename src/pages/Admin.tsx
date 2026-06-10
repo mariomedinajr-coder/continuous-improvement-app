@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle, X, Pencil, Trash2, Upload, Gift, Plus } from 'lucide-react'
+import { CheckCircle, X, Pencil, Trash2, Upload, Gift, Plus, RotateCcw, AlertTriangle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/auth'
 import type {
   SQDCMCategory,
   SQDCMPointConfig,
   ImprovementParticipant,
   Improvement,
   SQDCMImpact,
+  ImpactLevel,
   ImprovementStatus,
   Award,
   AwardRedemption,
@@ -247,87 +249,144 @@ function PointConfigTab() {
   )
 }
 
-// ─── Assign Points Modal ───────────────────────────────────────────────────────
+// ─── Evaluate / Assign Points Modal ────────────────────────────────────────────
 
 interface AssignModalProps {
   improvement: PendingImprovement
   pointConfig: Record<SQDCMCategory, PointConfigRow>
+  evaluatorId: string | null
   onClose: () => void
   onAssigned: () => void
 }
 
-function AssignModal({ improvement, pointConfig, onClose, onAssigned }: AssignModalProps) {
+const IMPACT_LEVELS: ImpactLevel[] = ['none', 'medium', 'high']
+
+const IMPACT_STYLES: Record<ImpactLevel, { active: string; inactive: string }> = {
+  none:   { active: 'bg-gray-700 text-white border-gray-700',       inactive: 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50' },
+  medium: { active: 'bg-yellow-500 text-white border-yellow-500',   inactive: 'bg-white text-yellow-700 border-yellow-200 hover:bg-yellow-50' },
+  high:   { active: 'bg-red-600 text-white border-red-600',         inactive: 'bg-white text-red-700 border-red-200 hover:bg-red-50' },
+}
+
+function impactPoints(level: ImpactLevel, cat: SQDCMCategory, cfg: Record<SQDCMCategory, PointConfigRow>): number {
+  if (level === 'high') return cfg[cat]?.high ?? 0
+  if (level === 'medium') return cfg[cat]?.medium ?? 0
+  return 0
+}
+
+function normaliseImpactList(source: SQDCMImpact[] | undefined): SQDCMImpact[] {
+  const arr = Array.isArray(source) ? source : []
+  const byCat = new Map(arr.map(i => [i.category, i]))
+  return CATEGORIES.map(c => byCat.get(c) ?? { category: c, description: '', impact_level: 'none' as ImpactLevel })
+}
+
+function AssignModal({ improvement, pointConfig, evaluatorId, onClose, onAssigned }: AssignModalProps) {
   const { t } = useTranslation()
+  const isReevaluation = !!improvement.evaluated_at
+
+  // Submitter's suggestion (read-only hint)
+  const submitterImpacts = useMemo(
+    () => normaliseImpactList(improvement.submitter_impact),
+    [improvement.submitter_impact],
+  )
+
+  // Manager's working impacts: pre-fill with current sqdcm_impact (re-eval) or submitter_impact (first eval)
+  const [impacts, setImpacts] = useState<SQDCMImpact[]>(() =>
+    normaliseImpactList(
+      isReevaluation ? improvement.sqdcm_impact : improvement.submitter_impact,
+    ),
+  )
+
   const [participants, setParticipants] = useState<ParticipantCheck[]>([])
   const [loadingPart, setLoadingPart] = useState(true)
   const [assigning, setAssigning] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Parse sqdcm_impact safely
-  const impacts: SQDCMImpact[] = Array.isArray(improvement.sqdcm_impact)
-    ? improvement.sqdcm_impact
-    : []
-
-  // Calculate total points from high/medium impacts
-  const calculatedPoints = impacts.reduce((sum, item) => {
-    if (item.impact_level === 'high') return sum + (pointConfig[item.category]?.high ?? 0)
-    if (item.impact_level === 'medium') return sum + (pointConfig[item.category]?.medium ?? 0)
-    return sum
-  }, 0)
+  const calculatedPoints = useMemo(
+    () => impacts.reduce((sum, i) => sum + impactPoints(i.impact_level, i.category, pointConfig), 0),
+    [impacts, pointConfig],
+  )
 
   useEffect(() => {
-    async function loadParticipants() {
-      setLoadingPart(true)
-      try {
-        const { data, error: fetchError } = await supabase
-          .from('improvement_participants')
-          .select('*, user:users(id, name, area)')
-          .eq('improvement_id', improvement.id)
-
-        if (fetchError) throw fetchError
-        setParticipants(
-          ((data ?? []) as ImprovementParticipant[]).map((p) => ({ ...p, selected: true }))
-        )
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
-      } finally {
+    let cancelled = false
+    setLoadingPart(true)
+    supabase
+      .from('improvement_participants')
+      .select('*, user:users(id, name, area)')
+      .eq('improvement_id', improvement.id)
+      .then(({ data, error: fetchError }) => {
+        if (cancelled) return
+        if (fetchError) setError(fetchError.message)
+        else setParticipants(((data ?? []) as ImprovementParticipant[]).map(p => ({ ...p, selected: true })))
         setLoadingPart(false)
-      }
-    }
-    loadParticipants()
+      })
+    return () => { cancelled = true }
   }, [improvement.id])
 
+  const setImpactLevel = (cat: SQDCMCategory, level: ImpactLevel) => {
+    setImpacts(prev => prev.map(i => (i.category === cat ? { ...i, impact_level: level } : i)))
+  }
+
+  const setImpactDescription = (cat: SQDCMCategory, description: string) => {
+    setImpacts(prev => prev.map(i => (i.category === cat ? { ...i, description } : i)))
+  }
+
   const toggleParticipant = (id: string) => {
-    setParticipants((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, selected: !p.selected } : p))
-    )
+    setParticipants(prev => prev.map(p => (p.id === id ? { ...p, selected: !p.selected } : p)))
   }
 
   const handleConfirm = async () => {
-    setAssigning(true)
     setError(null)
+    const selected = participants.filter(p => p.selected)
+    if (selected.length === 0) {
+      setError(t('admin.errors.noParticipants'))
+      return
+    }
+    if (calculatedPoints === 0) {
+      setError(t('admin.errors.noImpact'))
+      return
+    }
+
+    setAssigning(true)
     try {
-      const selected = participants.filter((p) => p.selected)
-      if (selected.length === 0) {
-        setError('Select at least one participant.')
-        setAssigning(false)
-        return
+      // 1. Update improvement with manager's evaluation
+      const { error: upErr } = await supabase
+        .from('improvements')
+        .update({
+          sqdcm_impact: impacts,
+          evaluated_by: evaluatorId,
+          evaluated_at: new Date().toISOString(),
+        })
+        .eq('id', improvement.id)
+      if (upErr) throw upErr
+
+      // 2. If re-evaluation, wipe previous assignments
+      if (isReevaluation) {
+        const { error: delErr } = await supabase
+          .from('point_assignments')
+          .delete()
+          .eq('improvement_id', improvement.id)
+        if (delErr) throw delErr
       }
 
-      const inserts = selected.map((p) => ({
+      // 3. Insert new assignments
+      const inserts = selected.map(p => ({
         improvement_id: improvement.id,
         user_id: p.user_id,
         points: calculatedPoints,
-        assigned_by: 'admin',
+        assigned_by: evaluatorId ?? 'manager',
       }))
-
-      const { error: insertError } = await supabase.from('point_assignments').insert(inserts)
-      if (insertError) throw insertError
+      const { error: insErr } = await supabase.from('point_assignments').insert(inserts)
+      if (insErr) throw insErr
 
       onAssigned()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      console.error('Assign points error:', err)
+      const msg =
+        err instanceof Error ? err.message
+        : (err && typeof err === 'object' && 'message' in err) ? String((err as { message: unknown }).message)
+        : JSON.stringify(err)
+      setError(msg)
     } finally {
       setAssigning(false)
     }
@@ -335,84 +394,108 @@ function AssignModal({ improvement, pointConfig, onClose, onAssigned }: AssignMo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-        {/* Modal header */}
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col">
         <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100">
-          <div>
-            <h3 className="text-base font-semibold text-gray-900">{t('admin.assignPoints')}</h3>
-            <p className="text-sm text-gray-500 mt-0.5 line-clamp-1">{improvement.title}</p>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-semibold text-gray-900">{t('admin.evaluateImpact')}</h3>
+              {isReevaluation && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                  <RotateCcw size={11} /> {t('admin.reevaluation')}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 mt-0.5 truncate">{improvement.title}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-          >
+          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
             <X size={18} />
           </button>
         </div>
 
-        {/* Modal body */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
           {error && (
             <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
               {error}
             </div>
           )}
 
-          {/* SQDCM Impacts */}
           <div>
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              SQDCM Impact
-            </h4>
-            {impacts.length === 0 ? (
-              <p className="text-sm text-gray-400">{t('common.none')}</p>
-            ) : (
-              <div className="space-y-1.5">
-                {impacts
-                  .filter((i) => i.impact_level !== 'none')
-                  .map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-blue-600 text-white text-xs font-bold">
-                          {item.category}
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                {t('admin.managerImpactDecision')}
+              </h4>
+              <p className="text-xs text-gray-400">{t('admin.managerImpactHint')}</p>
+            </div>
+
+            <div className="space-y-2">
+              {impacts.map(imp => {
+                const subSuggestion = submitterImpacts.find(s => s.category === imp.category)?.impact_level
+                const points = impactPoints(imp.impact_level, imp.category, pointConfig)
+                return (
+                  <div key={imp.category} className="rounded-xl border border-gray-200 p-3">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-blue-600 text-white text-sm font-bold shrink-0">
+                          {imp.category}
                         </span>
-                        <span className="text-sm text-gray-700 line-clamp-1">{item.description}</span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-800">{t(`sqdcm.${imp.category}`)}</p>
+                          {subSuggestion && subSuggestion !== 'none' && (
+                            <p className="text-xs text-gray-400">
+                              {t('admin.submitterSuggested')}: <span className={
+                                subSuggestion === 'high' ? 'text-red-600 font-medium' : 'text-yellow-700 font-medium'
+                              }>{t(`sqdcm.impact.${subSuggestion}`)}</span>
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 ml-2 shrink-0">
-                        <span
-                          className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                            item.impact_level === 'high'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-yellow-100 text-yellow-700'
-                          }`}
-                        >
-                          {t(`sqdcm.impact.${item.impact_level}`)}
-                        </span>
-                        <span className="text-sm font-semibold text-blue-700 w-12 text-right">
-                          +
-                          {item.impact_level === 'high'
-                            ? pointConfig[item.category]?.high ?? 0
-                            : item.impact_level === 'medium'
-                            ? pointConfig[item.category]?.medium ?? 0
-                            : 0}{' '}
-                          pts
+                      <div className="flex items-center gap-2">
+                        <div className="inline-flex rounded-lg overflow-hidden border border-gray-200">
+                          {IMPACT_LEVELS.map(level => {
+                            const selected = imp.impact_level === level
+                            const styles = IMPACT_STYLES[level]
+                            return (
+                              <button
+                                key={level}
+                                type="button"
+                                onClick={() => setImpactLevel(imp.category, level)}
+                                className={`px-3 py-1.5 text-xs font-medium border-r last:border-r-0 transition-colors ${
+                                  selected ? styles.active : styles.inactive
+                                }`}
+                              >
+                                {t(`sqdcm.impact.${level}`)}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <span className={`text-sm font-bold w-16 text-right ${points > 0 ? 'text-blue-700' : 'text-gray-300'}`}>
+                          {points > 0 ? `+${points}` : '—'} pts
                         </span>
                       </div>
                     </div>
-                  ))}
-              </div>
-            )}
+                    {imp.impact_level !== 'none' && (
+                      <input
+                        type="text"
+                        value={imp.description}
+                        onChange={e => setImpactDescription(imp.category, e.target.value)}
+                        placeholder={t('admin.impactDescriptionPlaceholder')}
+                        className="mt-3 block w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm placeholder-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
-          {/* Calculated total */}
-          <div className="flex items-center justify-between rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
-            <span className="text-sm font-medium text-blue-800">{t('admin.calculatedPoints')}</span>
-            <span className="text-xl font-bold text-blue-700">{calculatedPoints} pts</span>
+          <div className="flex items-center justify-between rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 px-5 py-3">
+            <div>
+              <p className="text-xs uppercase font-bold text-blue-700 tracking-wider">{t('admin.calculatedPoints')}</p>
+              <p className="text-xs text-blue-600 mt-0.5">{t('admin.perParticipant')}</p>
+            </div>
+            <span className="text-3xl font-bold text-blue-700">{calculatedPoints} <span className="text-base font-medium">pts</span></span>
           </div>
 
-          {/* Participants */}
           <div>
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
               {t('admin.participants')}
@@ -423,10 +506,10 @@ function AssignModal({ improvement, pointConfig, onClose, onAssigned }: AssignMo
               <p className="text-sm text-gray-400">{t('common.none')}</p>
             ) : (
               <div className="space-y-1.5">
-                {participants.map((p) => (
+                {participants.map(p => (
                   <label
                     key={p.id}
-                    className="flex items-center gap-3 rounded-lg border border-gray-100 px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors"
+                    className="flex items-center gap-3 rounded-lg border border-gray-100 px-3 py-2.5 cursor-pointer hover:bg-gray-50"
                   >
                     <input
                       type="checkbox"
@@ -436,9 +519,7 @@ function AssignModal({ improvement, pointConfig, onClose, onAssigned }: AssignMo
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900">{p.user?.name ?? p.user_id}</p>
-                      {p.user?.area && (
-                        <p className="text-xs text-gray-500">{p.user.area}</p>
-                      )}
+                      {p.user?.area && <p className="text-xs text-gray-500">{p.user.area}</p>}
                     </div>
                     {p.role_in_project && (
                       <span className="text-xs text-gray-400">{p.role_in_project}</span>
@@ -448,22 +529,25 @@ function AssignModal({ improvement, pointConfig, onClose, onAssigned }: AssignMo
               </div>
             )}
           </div>
+
+          {isReevaluation && (
+            <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+              <span>{t('admin.reevaluationWarning')}</span>
+            </div>
+          )}
         </div>
 
-        {/* Modal footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
-          >
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100">
             {t('common.cancel')}
           </button>
           <button
             onClick={handleConfirm}
             disabled={assigning || loadingPart}
-            className="px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {assigning ? t('common.loading') : t('admin.confirmAssign')}
+            {assigning ? t('common.loading') : (isReevaluation ? t('admin.confirmReevaluate') : t('admin.confirmAssign'))}
           </button>
         </div>
       </div>
@@ -473,17 +557,21 @@ function AssignModal({ improvement, pointConfig, onClose, onAssigned }: AssignMo
 
 // ─── Tab 2: Assign Points ──────────────────────────────────────────────────────
 
+type AssignFilter = 'pending' | 'evaluated' | 'all'
+
 function AssignPointsTab() {
   const { t } = useTranslation()
+  const { profile } = useAuth()
   const [improvements, setImprovements] = useState<PendingImprovement[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [filter, setFilter] = useState<AssignFilter>('pending')
   const [pointConfig, setPointConfig] = useState<Record<SQDCMCategory, PointConfigRow>>(
     () =>
       Object.fromEntries(CATEGORIES.map((c) => [c, { high: 10, medium: 5 }])) as Record<
         SQDCMCategory,
         PointConfigRow
-      >
+      >,
   )
   const [selectedImprovement, setSelectedImprovement] = useState<PendingImprovement | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -492,11 +580,10 @@ function AssignPointsTab() {
     setLoading(true)
     setError(null)
     try {
-      // Load point config
       const { data: configData } = await supabase.from('sqdcm_point_config').select('*')
       if (configData && configData.length > 0) {
         const updated = Object.fromEntries(
-          CATEGORIES.map((c) => [c, { high: 10, medium: 5 }])
+          CATEGORIES.map((c) => [c, { high: 10, medium: 5 }]),
         ) as Record<SQDCMCategory, PointConfigRow>
         for (const row of configData as SQDCMPointConfig[]) {
           if (CATEGORIES.includes(row.category)) {
@@ -507,32 +594,14 @@ function AssignPointsTab() {
         setPointConfig(updated)
       }
 
-      // Load improvements that are approved/implemented but don't have point_assignments yet
       const { data: improvData, error: improvError } = await supabase
         .from('improvements')
         .select('*')
         .in('status', ['approved', 'implemented'])
+        .order('updated_at', { ascending: false })
 
       if (improvError) throw improvError
-
-      const allImprovements = (improvData ?? []) as PendingImprovement[]
-
-      // Filter out those that already have assignments
-      const ids = allImprovements.map((i) => i.id)
-      if (ids.length === 0) {
-        setImprovements([])
-        setLoading(false)
-        return
-      }
-
-      const { data: assignedData } = await supabase
-        .from('point_assignments')
-        .select('improvement_id')
-        .in('improvement_id', ids)
-
-      const assignedIds = new Set((assignedData ?? []).map((r: { improvement_id: string }) => r.improvement_id))
-
-      setImprovements(allImprovements.filter((i) => !assignedIds.has(i.id)))
+      setImprovements((improvData ?? []) as PendingImprovement[])
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -550,12 +619,29 @@ function AssignPointsTab() {
     loadData()
   }
 
+  const filtered = useMemo(() => {
+    if (filter === 'pending') return improvements.filter(i => !i.evaluated_at)
+    if (filter === 'evaluated') return improvements.filter(i => !!i.evaluated_at)
+    return improvements
+  }, [improvements, filter])
+
+  const counts = useMemo(() => ({
+    pending: improvements.filter(i => !i.evaluated_at).length,
+    evaluated: improvements.filter(i => !!i.evaluated_at).length,
+    all: improvements.length,
+  }), [improvements])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16 text-sm text-gray-500">
         {t('common.loading')}
       </div>
     )
+  }
+
+  const handleReevaluate = (imp: PendingImprovement) => {
+    if (!confirm(t('admin.confirmReevaluatePrompt'))) return
+    setSelectedImprovement(imp)
   }
 
   return (
@@ -573,15 +659,34 @@ function AssignPointsTab() {
         </div>
       )}
 
-      {improvements.length === 0 ? (
+      <div className="flex items-center gap-2">
+        {(['pending', 'evaluated', 'all'] as AssignFilter[]).map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              filter === f ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            {t(`admin.filter.${f}`)} ({counts[f]})
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
         <div className="flex items-center justify-center py-16 text-sm text-gray-400 bg-white rounded-xl border border-gray-200">
           {t('common.none')}
         </div>
       ) : (
         <div className="space-y-3">
-          {improvements.map((imp) => {
+          {filtered.map(imp => {
+            const evaluated = !!imp.evaluated_at
             const impacts: SQDCMImpact[] = Array.isArray(imp.sqdcm_impact) ? imp.sqdcm_impact : []
-            const activeImpacts = impacts.filter((i) => i.impact_level !== 'none')
+            const activeImpacts = impacts.filter(i => i.impact_level !== 'none')
+            const total = activeImpacts.reduce(
+              (s, i) => s + impactPoints(i.impact_level, i.category, pointConfig),
+              0,
+            )
 
             return (
               <div
@@ -589,31 +694,56 @@ function AssignPointsTab() {
                 className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{imp.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{imp.area}</p>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {activeImpacts.map((item, i) => (
-                      <span
-                        key={i}
-                        className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
-                          item.impact_level === 'high'
-                            ? 'bg-red-50 text-red-700 border border-red-100'
-                            : 'bg-yellow-50 text-yellow-700 border border-yellow-100'
-                        }`}
-                      >
-                        <span className="font-bold">{item.category}</span>
-                        {' — '}
-                        {t(`sqdcm.impact.${item.impact_level}`)}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{imp.title}</p>
+                    {evaluated ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                        <CheckCircle size={11} />
+                        {t('admin.evaluated')}
                       </span>
-                    ))}
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                        {t('admin.pendingEvaluation')}
+                      </span>
+                    )}
                   </div>
+                  <p className="text-xs text-gray-500 mt-0.5">{imp.area}</p>
+                  {evaluated && activeImpacts.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2 items-center">
+                      {activeImpacts.map((item, i) => (
+                        <span
+                          key={i}
+                          className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+                            item.impact_level === 'high'
+                              ? 'bg-red-50 text-red-700 border border-red-100'
+                              : 'bg-yellow-50 text-yellow-700 border border-yellow-100'
+                          }`}
+                        >
+                          <span className="font-bold">{item.category}</span>
+                          {' — '}
+                          {t(`sqdcm.impact.${item.impact_level}`)}
+                        </span>
+                      ))}
+                      <span className="text-xs font-bold text-blue-700 ml-1">{total} pts</span>
+                    </div>
+                  )}
                 </div>
-                <button
-                  onClick={() => setSelectedImprovement(imp)}
-                  className="shrink-0 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium shadow-sm hover:bg-blue-700 transition-colors"
-                >
-                  {t('common.assign')}
-                </button>
+                {evaluated ? (
+                  <button
+                    onClick={() => handleReevaluate(imp)}
+                    className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500 text-white text-sm font-medium shadow-sm hover:bg-amber-600 transition-colors"
+                  >
+                    <RotateCcw size={14} />
+                    {t('admin.reevaluate')}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setSelectedImprovement(imp)}
+                    className="shrink-0 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium shadow-sm hover:bg-blue-700 transition-colors"
+                  >
+                    {t('admin.evaluateAndAssign')}
+                  </button>
+                )}
               </div>
             )
           })}
@@ -624,6 +754,7 @@ function AssignPointsTab() {
         <AssignModal
           improvement={selectedImprovement}
           pointConfig={pointConfig}
+          evaluatorId={profile?.id ?? null}
           onClose={() => setSelectedImprovement(null)}
           onAssigned={handleAssigned}
         />
