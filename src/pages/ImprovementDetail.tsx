@@ -1,9 +1,33 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Users, Calendar, MapPin, Star } from 'lucide-react'
+import { format } from 'date-fns'
+import { ArrowLeft, Users, Calendar, MapPin, Star, History, Check, X, Send, Search, RotateCcw, CheckCircle2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import type { Improvement, ImprovementParticipant, PointAssignment, SQDCMCategory, ImpactLevel } from '../types'
+import { useAuth } from '../lib/auth'
+import type { Improvement, ImprovementParticipant, PointAssignment, StatusHistoryEntry, ImprovementStatus, SQDCMCategory, ImpactLevel } from '../types'
+
+// Allowed forward/decision transitions from each status.
+const TRANSITIONS: Record<ImprovementStatus, ImprovementStatus[]> = {
+  draft: ['submitted'],
+  submitted: ['under_review', 'rejected'],
+  under_review: ['approved', 'rejected'],
+  approved: ['implemented', 'rejected'],
+  implemented: [],
+  rejected: ['under_review'],
+}
+
+// Reaching one of these records who evaluated the improvement and when.
+const EVALUATION_STATUSES: ImprovementStatus[] = ['approved', 'implemented', 'rejected']
+
+const ACTION_META: Record<ImprovementStatus, { icon: typeof Check; tone: string }> = {
+  submitted: { icon: Send, tone: 'bg-blue-600 hover:bg-blue-700 text-white' },
+  under_review: { icon: Search, tone: 'bg-blue-600 hover:bg-blue-700 text-white' },
+  approved: { icon: Check, tone: 'bg-green-600 hover:bg-green-700 text-white' },
+  implemented: { icon: CheckCircle2, tone: 'bg-emerald-600 hover:bg-emerald-700 text-white' },
+  rejected: { icon: X, tone: 'bg-red-600 hover:bg-red-700 text-white' },
+  draft: { icon: RotateCcw, tone: 'bg-gray-600 hover:bg-gray-700 text-white' },
+}
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -20,6 +44,8 @@ const IMPACT_COLORS: Record<ImpactLevel, string> = {
   none: 'bg-gray-100 text-gray-400',
 }
 
+type HistoryRow = StatusHistoryEntry & { user: { id: string; name: string } | null }
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
@@ -32,10 +58,23 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function ImprovementDetail() {
   const { id } = useParams<{ id: string }>()
   const { t } = useTranslation()
+  const { isManager, profile } = useAuth()
   const [improvement, setImprovement] = useState<Improvement | null>(null)
   const [participants, setParticipants] = useState<ImprovementParticipant[]>([])
   const [assignments, setAssignments] = useState<PointAssignment[]>([])
+  const [history, setHistory] = useState<HistoryRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [transitioning, setTransitioning] = useState<ImprovementStatus | null>(null)
+  const [transitionError, setTransitionError] = useState<string | null>(null)
+
+  async function loadHistory(improvementId: string) {
+    const { data } = await supabase
+      .from('status_history')
+      .select('*, user:users(id,name)')
+      .eq('improvement_id', improvementId)
+      .order('created_at', { ascending: false })
+    if (data) setHistory(data as HistoryRow[])
+  }
 
   useEffect(() => {
     if (!id) return
@@ -43,13 +82,42 @@ export default function ImprovementDetail() {
       supabase.from('improvements').select('*').eq('id', id).single(),
       supabase.from('improvement_participants').select('*, user:users(id,name,area,job_title)').eq('improvement_id', id),
       supabase.from('point_assignments').select('*, user:users(id,name,area)').eq('improvement_id', id),
-    ]).then(([{ data: imp }, { data: parts }, { data: assigns }]) => {
+      supabase.from('status_history').select('*, user:users(id,name)').eq('improvement_id', id).order('created_at', { ascending: false }),
+    ]).then(([{ data: imp }, { data: parts }, { data: assigns }, { data: hist }]) => {
       if (imp) setImprovement(imp as Improvement)
       if (parts) setParticipants(parts as ImprovementParticipant[])
       if (assigns) setAssignments(assigns as PointAssignment[])
+      if (hist) setHistory(hist as HistoryRow[])
       setLoading(false)
     })
   }, [id])
+
+  async function handleTransition(target: ImprovementStatus) {
+    if (!improvement) return
+    if (target === 'rejected' && !confirm(t('workflow.confirmReject'))) return
+
+    setTransitioning(target)
+    setTransitionError(null)
+
+    const payload: Partial<Improvement> = { status: target }
+    if (EVALUATION_STATUSES.includes(target) && profile) {
+      payload.evaluated_by = profile.id
+      payload.evaluated_at = new Date().toISOString()
+    }
+
+    const { data, error } = await supabase
+      .from('improvements')
+      .update(payload)
+      .eq('id', improvement.id)
+      .select('*')
+      .single()
+
+    setTransitioning(null)
+    if (error) { setTransitionError(error.message); return }
+    setImprovement(data as Improvement)
+    // status_history is written by the log_status_change trigger — reload it.
+    await loadHistory(improvement.id)
+  }
 
   if (loading) return (
     <div className="flex items-center justify-center mt-20">
@@ -83,6 +151,38 @@ export default function ImprovementDetail() {
           {t(`status.${improvement.status}`)}
         </span>
       </div>
+
+      {/* Status workflow actions (managers/admins) */}
+      {isManager && TRANSITIONS[improvement.status].length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="text-sm text-gray-500">
+              {t('workflow.currentStatus')}:{' '}
+              <span className="font-semibold text-gray-800">{t(`status.${improvement.status}`)}</span>
+            </p>
+            <div className="flex flex-wrap gap-2 sm:ml-auto">
+              {TRANSITIONS[improvement.status].map(target => {
+                const meta = ACTION_META[target]
+                const Icon = meta.icon
+                return (
+                  <button
+                    key={target}
+                    onClick={() => handleTransition(target)}
+                    disabled={transitioning !== null}
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${meta.tone}`}
+                  >
+                    <Icon size={15} />
+                    {t(`workflow.action.${target}`)}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          {transitionError && (
+            <p className="mt-2 text-sm text-red-600">{t('common.error')}: {transitionError}</p>
+          )}
+        </div>
+      )}
 
       {/* Problem */}
       <Section title={t('form.step2.title')}>
@@ -309,6 +409,42 @@ export default function ImprovementDetail() {
           </div>
         </Section>
       )}
+
+      {/* Activity timeline */}
+      <Section title={t('workflow.timeline')}>
+        {history.length === 0 ? (
+          <p className="flex items-center gap-2 text-sm text-gray-400">
+            <History size={15} />{t('workflow.noHistory')}
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {history.map((h, i) => (
+              <li key={h.id} className="flex gap-3">
+                <div className="flex flex-col items-center">
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                  {i < history.length - 1 && <span className="flex-1 w-px bg-gray-200 my-0.5" />}
+                </div>
+                <div className="pb-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {h.from_status && (
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[h.from_status]}`}>
+                        {t(`status.${h.from_status}`)}
+                      </span>
+                    )}
+                    <span className="text-gray-300">→</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[h.to_status]}`}>
+                      {t(`status.${h.to_status}`)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {h.user?.name ?? t('workflow.system')} · {format(new Date(h.created_at), 'PPp')}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
     </div>
   )
 }

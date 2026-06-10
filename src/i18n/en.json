@@ -47,6 +47,21 @@
     "implemented": "Implemented",
     "rejected": "Rejected"
   },
+  "workflow": {
+    "currentStatus": "Current status",
+    "timeline": "Activity timeline",
+    "noHistory": "No status changes yet.",
+    "system": "System",
+    "confirmReject": "Reject this improvement?",
+    "action": {
+      "submitted": "Submit",
+      "under_review": "Move to review",
+      "approved": "Approve",
+      "implemented": "Mark implemented",
+      "rejected": "Reject",
+      "draft": "Return to draft"
+    }
+  },
   "sqdcm": {
     "S": "Safety",
     "Q": "Quality",
