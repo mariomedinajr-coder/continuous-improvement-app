@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, ChevronLeft, Check, Upload, X, Plus, Trash2 } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Check, Upload, X, Plus, Trash2, Save } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import type { User, SQDCMCategory, ImpactLevel, FiveWhy, IshikawaCause, Solution, ResultIndicator, SQDCMImpact } from '../types'
+import type { User, Improvement, ImprovementStatus, SQDCMCategory, ImpactLevel, FiveWhy, IshikawaCause, Solution, ResultIndicator, SQDCMImpact } from '../types'
 
 const SQDCM_CATEGORIES: SQDCMCategory[] = ['S', 'Q', 'D', 'C', 'M']
 const ISHIKAWA_BRANCHES = ['method', 'machine', 'manpower', 'material', 'environment', 'measurement']
@@ -84,6 +84,47 @@ const defaultForm = (): FormData => ({
   next_steps_followup: '',
 })
 
+// Map a saved improvement row (+ its participants) back into editable form state.
+function rowToForm(row: Improvement, parts: { user_id: string; role_in_project: string }[]): FormData {
+  const base = defaultForm()
+  const nonEmpty = <T,>(arr: T[] | null | undefined, fallback: T[]) =>
+    arr && arr.length > 0 ? arr : fallback
+  return {
+    title: row.title ?? '',
+    area: row.area ?? '',
+    date_submitted: row.date_submitted ?? base.date_submitted,
+    problem_description: row.problem_description ?? '',
+    sqdcm_targeted: row.sqdcm_targeted ?? [],
+    expected_objective: row.expected_objective ?? '',
+    problem_impact: row.problem_impact ?? '',
+    current_state: nonEmpty(row.current_state, base.current_state),
+    desired_state: nonEmpty(row.desired_state, base.desired_state),
+    participant_ids: parts.map(p => p.user_id),
+    participant_roles: Object.fromEntries(parts.map(p => [p.user_id, p.role_in_project ?? ''])),
+    root_cause_method: row.root_cause_method ?? '5whys',
+    five_whys: nonEmpty(row.five_whys, base.five_whys),
+    ishikawa_causes: nonEmpty(row.ishikawa_causes, base.ishikawa_causes),
+    solutions: nonEmpty(row.solutions, base.solutions),
+    chosen_solution: row.chosen_solution ?? '',
+    dev_planning: row.dev_planning ?? '',
+    dev_resources: row.dev_resources ?? '',
+    dev_implementation: row.dev_implementation ?? '',
+    dev_followup: row.dev_followup ?? '',
+    before_images: row.before_images ?? [],
+    after_images: row.after_images ?? [],
+    result_indicators: nonEmpty(row.result_indicators, base.result_indicators),
+    new_standards: nonEmpty(row.new_standards, base.new_standards),
+    sqdcm_impact: nonEmpty(row.submitter_impact, base.sqdcm_impact),
+    pdca_plan: row.pdca_plan ?? '',
+    pdca_do: row.pdca_do ?? '',
+    pdca_check: row.pdca_check ?? '',
+    pdca_act: row.pdca_act ?? '',
+    next_steps_responsible: row.next_steps_responsible ?? '',
+    next_steps_date: row.next_steps_date ?? '',
+    next_steps_followup: row.next_steps_followup ?? '',
+  }
+}
+
 function StepIndicator({ current, total }: { current: number; total: number }) {
   return (
     <div className="flex items-center gap-1 flex-wrap">
@@ -135,19 +176,47 @@ function TextInput({ label, value, onChange, type = 'text' }: {
 export default function ImprovementForm() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { profile } = useAuth()
+  const { id } = useParams<{ id: string }>()
+  const { profile, isManager } = useAuth()
+  const isEdit = !!id
   const [step, setStep] = useState(0)
   const [form, setForm] = useState<FormData>(defaultForm())
   const [users, setUsers] = useState<User[]>([])
-  const [saving, setSaving] = useState(false)
+  const [saving, setSaving] = useState<ImprovementStatus | null>(null)
   const [uploadingBefore, setUploadingBefore] = useState(false)
   const [uploadingAfter, setUploadingAfter] = useState(false)
+
+  // Edit/draft state
+  const [improvementId, setImprovementId] = useState<string | null>(id ?? null)
+  const [loadedStatus, setLoadedStatus] = useState<ImprovementStatus | null>(null)
+  const [ownerId, setOwnerId] = useState<string | null>(null)
+  const [loadingExisting, setLoadingExisting] = useState(isEdit)
+  const [notFound, setNotFound] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [draftSaved, setDraftSaved] = useState(false)
 
   useEffect(() => {
     supabase.from('users').select('*').order('name').then(({ data }) => {
       if (data) setUsers(data as User[])
     })
   }, [])
+
+  // Load existing improvement when editing
+  useEffect(() => {
+    if (!id) return
+    setLoadingExisting(true)
+    Promise.all([
+      supabase.from('improvements').select('*').eq('id', id).maybeSingle(),
+      supabase.from('improvement_participants').select('user_id, role_in_project').eq('improvement_id', id),
+    ]).then(([{ data: row }, { data: parts }]) => {
+      if (!row) { setNotFound(true); setLoadingExisting(false); return }
+      const imp = row as Improvement
+      setForm(rowToForm(imp, (parts ?? []) as { user_id: string; role_in_project: string }[]))
+      setLoadedStatus(imp.status)
+      setOwnerId(imp.created_by)
+      setLoadingExisting(false)
+    })
+  }, [id])
 
   const set = <K extends keyof FormData>(key: K, value: FormData[K]) =>
     setForm(f => ({ ...f, [key]: value }))
@@ -165,61 +234,97 @@ export default function ImprovementForm() {
     setter(false)
   }
 
-  const handleSubmit = async () => {
-    setSaving(true)
-    const { data: imp, error } = await supabase
-      .from('improvements')
-      .insert({
-        title: form.title,
-        area: form.area,
-        date_submitted: form.date_submitted,
-        status: 'submitted',
-        created_by: profile?.id ?? null,
-        problem_description: form.problem_description,
-        sqdcm_targeted: form.sqdcm_targeted,
-        expected_objective: form.expected_objective,
-        problem_impact: form.problem_impact,
-        current_state: form.current_state.filter(Boolean),
-        desired_state: form.desired_state.filter(Boolean),
-        root_cause_method: form.root_cause_method,
-        five_whys: form.five_whys,
-        ishikawa_causes: form.ishikawa_causes,
-        solutions: form.solutions,
-        chosen_solution: form.chosen_solution,
-        dev_planning: form.dev_planning,
-        dev_resources: form.dev_resources,
-        dev_implementation: form.dev_implementation,
-        dev_followup: form.dev_followup,
-        before_images: form.before_images,
-        after_images: form.after_images,
-        result_indicators: form.result_indicators,
-        new_standards: form.new_standards.filter(Boolean),
-        submitter_impact: form.sqdcm_impact,
-        pdca_plan: form.pdca_plan,
-        pdca_do: form.pdca_do,
-        pdca_check: form.pdca_check,
-        pdca_act: form.pdca_act,
-        next_steps_responsible: form.next_steps_responsible,
-        next_steps_date: form.next_steps_date || null,
-        next_steps_followup: form.next_steps_followup,
-      })
-      .select()
-      .single()
+  // Editing a non-draft improvement just persists changes at the current status;
+  // a new improvement or an owned draft can be saved as draft or submitted.
+  const editingNonDraft = isEdit && loadedStatus !== null && loadedStatus !== 'draft'
+  const canEdit =
+    !isEdit ||
+    isManager ||
+    (loadedStatus === 'draft' && ownerId !== null && ownerId === profile?.id)
 
-    if (error || !imp) { setSaving(false); alert('Error saving'); return }
+  const buildPayload = (status: ImprovementStatus) => ({
+    title: form.title,
+    area: form.area,
+    date_submitted: form.date_submitted,
+    status,
+    problem_description: form.problem_description,
+    sqdcm_targeted: form.sqdcm_targeted,
+    expected_objective: form.expected_objective,
+    problem_impact: form.problem_impact,
+    current_state: form.current_state.filter(Boolean),
+    desired_state: form.desired_state.filter(Boolean),
+    root_cause_method: form.root_cause_method,
+    five_whys: form.five_whys,
+    ishikawa_causes: form.ishikawa_causes,
+    solutions: form.solutions,
+    chosen_solution: form.chosen_solution,
+    dev_planning: form.dev_planning,
+    dev_resources: form.dev_resources,
+    dev_implementation: form.dev_implementation,
+    dev_followup: form.dev_followup,
+    before_images: form.before_images,
+    after_images: form.after_images,
+    result_indicators: form.result_indicators,
+    new_standards: form.new_standards.filter(Boolean),
+    submitter_impact: form.sqdcm_impact,
+    pdca_plan: form.pdca_plan,
+    pdca_do: form.pdca_do,
+    pdca_check: form.pdca_check,
+    pdca_act: form.pdca_act,
+    next_steps_responsible: form.next_steps_responsible,
+    next_steps_date: form.next_steps_date || null,
+    next_steps_followup: form.next_steps_followup,
+  })
 
-    if (form.participant_ids.length > 0) {
-      await supabase.from('improvement_participants').insert(
-        form.participant_ids.map(uid => ({
-          improvement_id: imp.id,
-          user_id: uid,
-          role_in_project: form.participant_roles[uid] || '',
-        }))
-      )
+  const save = async (targetStatus: ImprovementStatus) => {
+    if (!form.title.trim()) { setStep(0); setErrorMsg(t('form.titleRequired')); return }
+    setSaving(targetStatus)
+    setErrorMsg(null)
+    setDraftSaved(false)
+    const payload = buildPayload(targetStatus)
+    let impId = improvementId
+
+    try {
+      if (impId) {
+        const { error } = await supabase.from('improvements').update(payload).eq('id', impId)
+        if (error) throw error
+      } else {
+        const { data, error } = await supabase
+          .from('improvements')
+          .insert({ ...payload, created_by: profile?.id ?? null })
+          .select('id')
+          .single()
+        if (error || !data) throw error ?? new Error('insert failed')
+        impId = data.id as string
+        setImprovementId(impId)
+      }
+
+      // Replace participants
+      await supabase.from('improvement_participants').delete().eq('improvement_id', impId)
+      if (form.participant_ids.length > 0) {
+        const { error: pErr } = await supabase.from('improvement_participants').insert(
+          form.participant_ids.map(uid => ({
+            improvement_id: impId,
+            user_id: uid,
+            role_in_project: form.participant_roles[uid] || '',
+          }))
+        )
+        if (pErr) throw pErr
+      }
+
+      if (targetStatus === 'draft') {
+        setLoadedStatus('draft')
+        if (ownerId === null) setOwnerId(profile?.id ?? null)
+        setDraftSaved(true)
+        setTimeout(() => setDraftSaved(false), 4000)
+      } else {
+        navigate(`/improvements/${impId}`)
+      }
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(null)
     }
-
-    setSaving(false)
-    navigate(`/improvements/${imp.id}`)
   }
 
   const steps = [
@@ -622,10 +727,35 @@ export default function ImprovementForm() {
     t('form.step9.title'), t('form.step10.title'), t('form.step11.title'),
   ]
 
+  if (loadingExisting) {
+    return (
+      <div className="flex items-center justify-center mt-20">
+        <div className="animate-spin border-4 border-blue-600 border-t-transparent rounded-full w-8 h-8" />
+      </div>
+    )
+  }
+
+  if (isEdit && (notFound || !canEdit)) {
+    return (
+      <div className="max-w-3xl mx-auto text-center mt-20 space-y-4">
+        <p className="text-gray-500">{notFound ? t('form.notFound') : t('form.notAllowed')}</p>
+        <Link to="/improvements" className="text-blue-600 text-sm font-medium hover:underline">
+          ← {t('improvements.title')}
+        </Link>
+      </div>
+    )
+  }
+
+  const headerTitle = !isEdit
+    ? t('nav.submit')
+    : editingNonDraft
+      ? t('form.editTitle')
+      : t('form.continueDraftTitle')
+
   return (
     <div className="max-w-3xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{t('nav.submit')}</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{headerTitle}</h1>
         <div className="mt-3">
           <StepIndicator current={step} total={TOTAL_STEPS} />
           <p className="text-sm text-gray-500 mt-2">
@@ -639,7 +769,18 @@ export default function ImprovementForm() {
         {steps[step]}
       </div>
 
-      <div className="flex justify-between mt-6">
+      {errorMsg && (
+        <div className="mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+          {t('common.error')}: {errorMsg}
+        </div>
+      )}
+      {draftSaved && (
+        <div className="mt-4 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700 flex items-center gap-2">
+          <Check size={15} />{t('form.draftSaved')}
+        </div>
+      )}
+
+      <div className="flex flex-wrap justify-between items-center gap-3 mt-6">
         <button
           type="button"
           onClick={() => setStep(s => s - 1)}
@@ -648,24 +789,51 @@ export default function ImprovementForm() {
         >
           <ChevronLeft size={16} />{t('common.back')}
         </button>
-        {step < TOTAL_STEPS - 1 ? (
-          <button
-            type="button"
-            onClick={() => setStep(s => s + 1)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
-          >
-            {t('common.next')}<ChevronRight size={16} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={saving}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-60 transition-colors"
-          >
-            <Check size={16} />{saving ? t('common.loading') : t('common.submit')}
-          </button>
-        )}
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Save action — depends on mode */}
+          {editingNonDraft ? (
+            // Admin/manager editing an already-submitted improvement: persist at current status.
+            <button
+              type="button"
+              onClick={() => loadedStatus && save(loadedStatus)}
+              disabled={saving !== null}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-60 transition-colors"
+            >
+              <Save size={16} />{saving ? t('common.loading') : t('form.saveChanges')}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => save('draft')}
+              disabled={saving !== null}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 transition-colors"
+            >
+              <Save size={16} />{saving === 'draft' ? t('common.loading') : t('form.saveDraft')}
+            </button>
+          )}
+
+          {/* Step navigation — always available; Submit replaces Next on the last
+              step only when creating/continuing a draft. */}
+          {step < TOTAL_STEPS - 1 ? (
+            <button
+              type="button"
+              onClick={() => setStep(s => s + 1)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              {t('common.next')}<ChevronRight size={16} />
+            </button>
+          ) : !editingNonDraft ? (
+            <button
+              type="button"
+              onClick={() => save('submitted')}
+              disabled={saving !== null}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-60 transition-colors"
+            >
+              <Check size={16} />{saving === 'submitted' ? t('common.loading') : t('common.submit')}
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   )

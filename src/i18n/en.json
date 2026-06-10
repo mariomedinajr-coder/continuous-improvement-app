@@ -95,7 +95,8 @@
     "filterByStatus": "Filter by status",
     "filterByArea": "Filter by area",
     "totalParticipants": "Participants",
-    "present": "Present"
+    "present": "Present",
+    "continueDraft": "Continue"
   },
   "present": {
     "title": "Improvement Presentation",
@@ -121,6 +122,14 @@
     }
   },
   "form": {
+    "saveDraft": "Save draft",
+    "saveChanges": "Save changes",
+    "draftSaved": "Draft saved — you can come back and finish it anytime.",
+    "titleRequired": "Please enter an improvement name before saving.",
+    "notFound": "Improvement not found.",
+    "notAllowed": "You don't have permission to edit this improvement.",
+    "editTitle": "Edit improvement",
+    "continueDraftTitle": "Continue draft",
     "step1": {
       "title": "Cover",
       "improvementName": "Improvement Name",
@@ -257,8 +266,17 @@
     "members": "Members",
     "noTeams": "No teams yet",
     "deleteConfirm": "Delete this team? Members will be unassigned.",
+    "manageMembers": "Members",
+    "membersOf": "Members of {{name}}",
+    "addMember": "Add member",
+    "addMemberTitle": "Add collaborator",
+    "noMembers": "No members yet.",
+    "loginlessHint": "Collaborators added here have no login — they only earn points and own improvements.",
+    "removeMemberConfirm": "Remove this member from the team? Their points and improvements are kept.",
+    "remove": "Remove",
     "errors": {
-      "nameRequired": "Team name is required"
+      "nameRequired": "Team name is required",
+      "memberNameRequired": "Member name is required"
     }
   },
   "admin": {
@@ -362,6 +380,8 @@
     "you": "you",
     "confirmDemoteSelf": "Are you sure you want to remove your own admin role? You will lose access.",
     "cannotDeactivateSelf": "You cannot deactivate your own account.",
+    "cannotDeleteSelf": "You cannot delete your own account.",
+    "confirmDelete": "Delete {{name}} permanently? Their points, participations and award redemptions will be removed, and their login (if any) will be deleted. Improvements they authored are kept. This cannot be undone.",
     "errors": {
       "nameRequired": "Name is required",
       "emailRequired": "Email is required",

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
-import { ArrowLeft, Users, Calendar, MapPin, Star, History, Check, X, Send, Search, RotateCcw, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Users, Calendar, MapPin, Star, History, Check, X, Send, Search, RotateCcw, CheckCircle2, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import type { Improvement, ImprovementParticipant, PointAssignment, StatusHistoryEntry, ImprovementStatus, SQDCMCategory, ImpactLevel } from '../types'
@@ -147,9 +147,19 @@ export default function ImprovementDetail() {
             {totalPoints > 0 && <span className="flex items-center gap-1 text-yellow-600 font-medium"><Star size={14} fill="currentColor" />{totalPoints} pts</span>}
           </div>
         </div>
-        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[improvement.status]}`}>
-          {t(`status.${improvement.status}`)}
-        </span>
+        <div className="flex items-center gap-2">
+          {(isManager || (improvement.status === 'draft' && improvement.created_by === profile?.id)) && (
+            <Link
+              to={`/improvements/${improvement.id}/edit`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
+            >
+              <Pencil size={14} />{t('common.edit')}
+            </Link>
+          )}
+          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[improvement.status]}`}>
+            {t(`status.${improvement.status}`)}
+          </span>
+        </div>
       </div>
 
       {/* Status workflow actions (managers/admins) */}

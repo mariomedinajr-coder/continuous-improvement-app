@@ -144,19 +144,25 @@ export default function Dashboard() {
 
   // ── Derived metrics (useMemo, no useState for derived) ─────────────────────
 
-  const totalImprovements = useMemo(() => data?.improvements.length ?? 0, [data])
+  // Drafts are unsubmitted work-in-progress — exclude them from the overview.
+  const improvements = useMemo(
+    () => (data?.improvements ?? []).filter(i => i.status !== 'draft'),
+    [data],
+  )
+
+  const totalImprovements = useMemo(() => improvements.length, [improvements])
 
   const implementedCount = useMemo(
-    () => data?.improvements.filter(i => i.status === 'implemented').length ?? 0,
-    [data],
+    () => improvements.filter(i => i.status === 'implemented').length,
+    [improvements],
   )
 
   const inProgressCount = useMemo(
     () =>
-      data?.improvements.filter(i =>
+      improvements.filter(i =>
         (['submitted', 'under_review', 'approved'] as ImprovementStatus[]).includes(i.status),
-      ).length ?? 0,
-    [data],
+      ).length,
+    [improvements],
   )
 
   const totalPoints = useMemo(
@@ -165,15 +171,14 @@ export default function Dashboard() {
   )
 
   const recentImprovements = useMemo(
-    () => data?.improvements.slice(0, 5) ?? [],
-    [data],
+    () => improvements.slice(0, 5),
+    [improvements],
   )
 
   // Bar chart — SQDCM counts
   const sqdcmChartData = useMemo(() => {
-    if (!data) return []
     const counts: Record<SQDCMCategory, number> = { S: 0, Q: 0, D: 0, C: 0, M: 0 }
-    for (const imp of data.improvements) {
+    for (const imp of improvements) {
       for (const cat of (imp.sqdcm_targeted ?? [])) {
         if (cat in counts) counts[cat as SQDCMCategory]++
       }
@@ -183,13 +188,12 @@ export default function Dashboard() {
       count: counts[cat],
       fill: SQDCM_COLORS[cat],
     }))
-  }, [data])
+  }, [improvements])
 
   // Pie chart — by status
   const statusChartData = useMemo(() => {
-    if (!data) return []
     const counts: Partial<Record<ImprovementStatus, number>> = {}
-    for (const imp of data.improvements) {
+    for (const imp of improvements) {
       counts[imp.status] = (counts[imp.status] ?? 0) + 1
     }
     return (Object.entries(counts) as [ImprovementStatus, number][]).map(([status, value]) => ({
@@ -197,14 +201,13 @@ export default function Dashboard() {
       value,
       fill: STATUS_COLORS[status],
     }))
-  }, [data])
+  }, [improvements])
 
   // Line chart — monthly trend (last 12 months)
   const monthlyTrendData = useMemo(() => {
-    if (!data) return []
     const keys = getLast12MonthKeys()
     const countByMonth: Record<string, number> = {}
-    for (const imp of data.improvements) {
+    for (const imp of improvements) {
       const key = getMonthKey(imp.created_at)
       countByMonth[key] = (countByMonth[key] ?? 0) + 1
     }
@@ -212,7 +215,7 @@ export default function Dashboard() {
       month: formatMonthLabel(key),
       count: countByMonth[key] ?? 0,
     }))
-  }, [data])
+  }, [improvements])
 
   // ── Loading ────────────────────────────────────────────────────────────────
 

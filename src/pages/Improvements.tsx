@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { PlusCircle, Eye, Search, ChevronLeft, ChevronRight, Presentation } from 'lucide-react'
+import { PlusCircle, Eye, Search, ChevronLeft, ChevronRight, Presentation, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import type { Improvement, ImprovementStatus } from '../types'
@@ -323,20 +323,39 @@ export default function Improvements() {
                         {/* Actions */}
                         <td className="px-6 py-3">
                           <div className="flex items-center gap-2">
-                            <Link
-                              to={`/improvements/${imp.id}`}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-                            >
-                              <Eye size={13} />
-                              {t('common.view')}
-                            </Link>
+                            {imp.status === 'draft' ? (
+                              <Link
+                                to={`/improvements/${imp.id}/edit`}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+                              >
+                                <Pencil size={13} />
+                                {t('improvements.continueDraft')}
+                              </Link>
+                            ) : (
+                              <Link
+                                to={`/improvements/${imp.id}`}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                              >
+                                <Eye size={13} />
+                                {t('common.view')}
+                              </Link>
+                            )}
+                            {isManager && imp.status !== 'draft' && (
+                              <Link
+                                to={`/improvements/${imp.id}/edit`}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                              >
+                                <Pencil size={13} />
+                                {t('common.edit')}
+                              </Link>
+                            )}
                             <Link
                               to={`/improvements/${imp.id}/present`}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg hover:from-amber-600 hover:to-orange-600 shadow-sm transition-colors"
+                              className="inline-flex items-center justify-center p-1.5 text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg hover:from-amber-600 hover:to-orange-600 shadow-sm transition-colors"
                               title={t('improvements.present')}
+                              aria-label={t('improvements.present')}
                             >
-                              <Presentation size={13} />
-                              {t('improvements.present')}
+                              <Presentation size={15} />
                             </Link>
                           </div>
                         </td>

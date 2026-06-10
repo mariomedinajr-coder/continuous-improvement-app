@@ -95,7 +95,8 @@
     "filterByStatus": "Filtrar por estado",
     "filterByArea": "Filtrar por área",
     "totalParticipants": "Participantes",
-    "present": "Presentar"
+    "present": "Presentar",
+    "continueDraft": "Continuar"
   },
   "present": {
     "title": "Presentación de Mejora",
@@ -121,6 +122,14 @@
     }
   },
   "form": {
+    "saveDraft": "Guardar borrador",
+    "saveChanges": "Guardar cambios",
+    "draftSaved": "Borrador guardado — puedes volver y terminarlo cuando quieras.",
+    "titleRequired": "Ingresa un nombre de mejora antes de guardar.",
+    "notFound": "Mejora no encontrada.",
+    "notAllowed": "No tienes permiso para editar esta mejora.",
+    "editTitle": "Editar mejora",
+    "continueDraftTitle": "Continuar borrador",
     "step1": {
       "title": "Portada",
       "improvementName": "Nombre de la Mejora",
@@ -257,8 +266,17 @@
     "members": "Miembros",
     "noTeams": "Aún no hay equipos",
     "deleteConfirm": "¿Eliminar este equipo? Los miembros quedarán sin equipo.",
+    "manageMembers": "Miembros",
+    "membersOf": "Miembros de {{name}}",
+    "addMember": "Agregar miembro",
+    "addMemberTitle": "Agregar colaborador",
+    "noMembers": "Aún no hay miembros.",
+    "loginlessHint": "Los colaboradores agregados aquí no tienen acceso — solo acumulan puntos y son dueños de sus mejoras.",
+    "removeMemberConfirm": "¿Quitar a este miembro del equipo? Se conservan sus puntos y mejoras.",
+    "remove": "Quitar",
     "errors": {
-      "nameRequired": "El nombre del equipo es obligatorio"
+      "nameRequired": "El nombre del equipo es obligatorio",
+      "memberNameRequired": "El nombre del miembro es obligatorio"
     }
   },
   "admin": {
@@ -362,6 +380,8 @@
     "you": "tú",
     "confirmDemoteSelf": "¿Seguro que quieres quitarte el rol de administrador? Perderás acceso.",
     "cannotDeactivateSelf": "No puedes desactivar tu propia cuenta.",
+    "cannotDeleteSelf": "No puedes eliminar tu propia cuenta.",
+    "confirmDelete": "¿Eliminar a {{name}} permanentemente? Se quitarán sus puntos, participaciones y canjes de premios, y se eliminará su acceso (si tiene). Las mejoras que creó se conservan. Esto no se puede deshacer.",
     "errors": {
       "nameRequired": "El nombre es requerido",
       "emailRequired": "El correo es requerido",

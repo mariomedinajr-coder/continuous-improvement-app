@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search, UserPlus, X, CheckCircle, Pencil, Eye, EyeOff, Shield, Copy, History, FileText, Users as UsersIcon, Star, Gift, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react'
+import { Search, UserPlus, X, CheckCircle, Pencil, Eye, EyeOff, Shield, Copy, History, FileText, Users as UsersIcon, Star, Gift, RefreshCw, TrendingUp, TrendingDown, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import type { User, UserRole, ImprovementStatus, Team } from '../types'
@@ -756,6 +756,22 @@ export default function Users() {
     setUsers(prev => prev.map(u => (u.id === user.id ? (data as UserRow) : u)))
   }
 
+  async function deleteUser(user: User) {
+    if (user.id === profile?.id) {
+      alert(t('users.cannotDeleteSelf'))
+      return
+    }
+    if (!confirm(t('users.confirmDelete', { name: user.name }))) return
+    setSavingId(user.id)
+    const { error } = await supabase.rpc('admin_delete_user', { p_user_id: user.id })
+    setSavingId(null)
+    if (error) {
+      alert(error.message)
+      return
+    }
+    setUsers(prev => prev.filter(u => u.id !== user.id))
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -918,6 +934,16 @@ export default function Users() {
                           >
                             <Pencil size={13} />
                             {t('users.edit')}
+                          </button>
+                        )}
+                        {isAdmin && user.id !== profile?.id && (
+                          <button
+                            onClick={() => deleteUser(user)}
+                            disabled={savingId === user.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Trash2 size={13} />
+                            {t('common.delete')}
                           </button>
                         )}
                       </div>

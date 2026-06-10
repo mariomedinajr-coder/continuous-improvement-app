@@ -209,6 +209,37 @@ create trigger point_assignments_sync
   after insert or update or delete on point_assignments
   for each row execute function sync_user_points();
 
+-- Keep the "every participant earns the improvement's points" rule true when a
+-- participant is added after the improvement was already scored. (If it isn't
+-- scored yet, points are assigned later in the Admin panel for all participants.)
+create or replace function sync_new_participant_points()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_points integer;
+begin
+  select points into v_points
+  from point_assignments
+  where improvement_id = new.improvement_id
+  limit 1;
+
+  if v_points is not null then
+    insert into point_assignments (improvement_id, user_id, points, assigned_by)
+    values (new.improvement_id, new.user_id, v_points, 'auto')
+    on conflict (improvement_id, user_id) do nothing;
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger improvement_participants_points
+  after insert on improvement_participants
+  for each row execute function sync_new_participant_points();
+
 -- Leaderboard view (annual)
 create or replace view leaderboard_annual as
 select
@@ -412,6 +443,44 @@ begin
 end;
 $$;
 
+-- Admin-only hard delete of a user profile + their Auth login.
+-- Authored improvements and status-history rows are preserved (link nulled);
+-- point_assignments / participations / award_redemptions cascade away.
+create or replace function public.admin_delete_user(p_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path to 'public', 'auth'
+as $$
+declare
+  v_caller_role text;
+  v_caller_id uuid;
+  v_auth uuid;
+begin
+  select id, role into v_caller_id, v_caller_role
+  from public.users where auth_id = auth.uid();
+
+  if v_caller_role is null or v_caller_role <> 'admin' then
+    raise exception 'Forbidden: admin role required';
+  end if;
+
+  if p_user_id = v_caller_id then
+    raise exception 'You cannot delete your own account';
+  end if;
+
+  select auth_id into v_auth from public.users where id = p_user_id;
+
+  update public.improvements set created_by = null where created_by = p_user_id;
+  update public.status_history set changed_by = null where changed_by = p_user_id;
+
+  delete from public.users where id = p_user_id;
+
+  if v_auth is not null then
+    delete from auth.users where id = v_auth;
+  end if;
+end;
+$$;
+
 -- ============================================================
 -- ROW LEVEL SECURITY
 -- Reads are public (everyone signed in can browse). Writes are gated by role
@@ -449,8 +518,14 @@ create policy sqdcm_admin_write on sqdcm_point_config for all
   with check (public."current_role"() = 'admin');
 
 -- improvements
+-- Drafts are visible only to their owner and managers/admins; submitted+ are public.
 drop policy if exists improvements_select on improvements;
-create policy improvements_select on improvements for select using (true);
+create policy improvements_select on improvements for select
+  using (
+    status <> 'draft'
+    or created_by = public.current_user_id()
+    or public."current_role"() in ('admin','manager')
+  );
 drop policy if exists improvements_insert on improvements;
 create policy improvements_insert on improvements for insert
   with check (
@@ -458,6 +533,8 @@ create policy improvements_insert on improvements for insert
     or created_by = public.current_user_id()
     or public."current_role"() in ('admin','manager')
   );
+-- Owner may edit their own draft and submit it (draft -> submitted) but not edit
+-- once submitted; managers/admins may edit any improvement at any status.
 drop policy if exists improvements_update on improvements;
 create policy improvements_update on improvements for update
   using (
@@ -466,7 +543,7 @@ create policy improvements_update on improvements for update
   )
   with check (
     public."current_role"() in ('admin','manager')
-    or (created_by = public.current_user_id() and status = 'draft')
+    or (created_by = public.current_user_id() and status in ('draft','submitted'))
   );
 drop policy if exists improvements_delete on improvements;
 create policy improvements_delete on improvements for delete

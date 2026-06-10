@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, X, Pencil, Trash2, UsersRound } from 'lucide-react'
+import { Plus, X, Pencil, Trash2, UsersRound, UserPlus, Star } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import type { Team } from '../types'
 
 interface TeamRow extends Team {
   members_count: number
+}
+
+interface MemberRow {
+  id: string
+  name: string
+  job_title: string
+  area: string
+  total_points: number
 }
 
 interface TeamFormState {
@@ -138,6 +146,189 @@ function TeamForm({ initial, onClose, onSaved }: TeamFormProps) {
   )
 }
 
+interface MembersModalProps {
+  team: TeamRow
+  onClose: () => void
+  onCountChange: (teamId: string, delta: number) => void
+}
+
+const EMPTY_MEMBER = { name: '', area: '', job_title: '', employee_number: '' }
+
+function TeamMembersModal({ team, onClose, onCountChange }: MembersModalProps) {
+  const { t } = useTranslation()
+  const [members, setMembers] = useState<MemberRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [form, setForm] = useState(EMPTY_MEMBER)
+  const [adding, setAdding] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase
+      .from('users')
+      .select('id, name, job_title, area, total_points')
+      .eq('team_id', team.id)
+      .order('name', { ascending: true })
+      .then(({ data }) => {
+        setMembers((data ?? []) as MemberRow[])
+        setLoading(false)
+      })
+  }, [team.id])
+
+  const change = (field: keyof typeof EMPTY_MEMBER, value: string) =>
+    setForm(prev => ({ ...prev, [field]: value }))
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    if (!form.name.trim()) {
+      setError(t('teams.errors.memberNameRequired'))
+      return
+    }
+    setAdding(true)
+    // Login-less collaborator: no email / auth_id, role viewer, attached to this team.
+    const { data, error: insErr } = await supabase
+      .from('users')
+      .insert({
+        name: form.name.trim(),
+        area: form.area.trim(),
+        job_title: form.job_title.trim(),
+        employee_number: form.employee_number.trim(),
+        role: 'viewer',
+        is_active: true,
+        team_id: team.id,
+      })
+      .select('id, name, job_title, area, total_points')
+      .single()
+    setAdding(false)
+    if (insErr) { setError(insErr.message); return }
+    setMembers(prev => [...prev, data as MemberRow].sort((a, b) => a.name.localeCompare(b.name)))
+    onCountChange(team.id, 1)
+    setForm(EMPTY_MEMBER)
+  }
+
+  async function handleRemove(m: MemberRow) {
+    if (!confirm(t('teams.removeMemberConfirm'))) return
+    setRemovingId(m.id)
+    const { error: upErr } = await supabase.from('users').update({ team_id: null }).eq('id', m.id)
+    setRemovingId(null)
+    if (upErr) { alert(upErr.message); return }
+    setMembers(prev => prev.filter(x => x.id !== m.id))
+    onCountChange(team.id, -1)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h3 className="text-base font-semibold text-gray-900">
+            {t('teams.membersOf', { name: team.name })}
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="px-6 py-4 overflow-y-auto space-y-4">
+          {/* Member list */}
+          {loading ? (
+            <p className="text-sm text-gray-500 py-4">{t('common.loading')}</p>
+          ) : members.length === 0 ? (
+            <p className="text-sm text-gray-400 py-4">{t('teams.noMembers')}</p>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {members.map(m => (
+                <li key={m.id} className="flex items-center justify-between py-2.5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">
+                      {m.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{m.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {[m.job_title, m.area].filter(Boolean).join(' · ') || '—'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-yellow-600">
+                      <Star size={13} fill="currentColor" />{m.total_points}
+                    </span>
+                    <button
+                      onClick={() => handleRemove(m)}
+                      disabled={removingId === m.id}
+                      title={t('teams.remove')}
+                      className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Add collaborator */}
+        <form onSubmit={handleAdd} className="border-t border-gray-100 px-6 py-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <UserPlus size={15} className="text-blue-600" />
+            <p className="text-sm font-semibold text-gray-800">{t('teams.addMemberTitle')}</p>
+          </div>
+          <p className="text-xs text-gray-400">{t('teams.loginlessHint')}</p>
+          {error && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{error}</div>
+          )}
+          <input
+            type="text"
+            value={form.name}
+            onChange={e => change('name', e.target.value)}
+            placeholder={t('common.name')}
+            required
+            className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          />
+          <div className="grid grid-cols-3 gap-2">
+            <input
+              type="text"
+              value={form.job_title}
+              onChange={e => change('job_title', e.target.value)}
+              placeholder={t('users.role')}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+            <input
+              type="text"
+              value={form.area}
+              onChange={e => change('area', e.target.value)}
+              placeholder={t('common.area')}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+            <input
+              type="text"
+              value={form.employee_number}
+              onChange={e => change('employee_number', e.target.value)}
+              placeholder={t('users.employeeNumber')}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={adding}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <UserPlus size={15} />
+              {adding ? t('common.loading') : t('teams.addMember')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function Teams() {
   const { t } = useTranslation()
   const { isAdmin } = useAuth()
@@ -148,6 +339,12 @@ export default function Teams() {
   const [showForm, setShowForm] = useState(false)
   const [editTeam, setEditTeam] = useState<Team | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [manageTeam, setManageTeam] = useState<TeamRow | null>(null)
+
+  const handleCountChange = (teamId: string, delta: number) =>
+    setTeams(prev => prev.map(tm =>
+      tm.id === teamId ? { ...tm, members_count: Math.max(0, tm.members_count + delta) } : tm
+    ))
 
   useEffect(() => {
     async function fetchTeams() {
@@ -268,6 +465,13 @@ export default function Teams() {
                       {isAdmin && (
                         <div className="flex items-center justify-end gap-2">
                           <button
+                            onClick={() => setManageTeam(team)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-blue-700 border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors"
+                          >
+                            <UsersRound size={13} />
+                            {t('teams.manageMembers')}
+                          </button>
+                          <button
                             onClick={() => { setEditTeam(team); setShowForm(true) }}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 hover:text-gray-900 transition-colors"
                           >
@@ -298,6 +502,14 @@ export default function Teams() {
           initial={editTeam}
           onClose={() => { setShowForm(false); setEditTeam(null) }}
           onSaved={handleSaved}
+        />
+      )}
+
+      {manageTeam && (
+        <TeamMembersModal
+          team={manageTeam}
+          onClose={() => setManageTeam(null)}
+          onCountChange={handleCountChange}
         />
       )}
     </div>

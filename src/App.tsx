@@ -55,6 +55,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/improvements" element={<Improvements />} />
             <Route path="/improvements/new" element={<ImprovementForm />} />
+            <Route path="/improvements/:id/edit" element={<ImprovementForm />} />
             <Route path="/improvements/:id" element={<ImprovementDetail />} />
             <Route path="/improvements/:id/present" element={<ImprovementPresent />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
