@@ -156,6 +156,13 @@ export interface LeaderboardEntry {
   rank: number
 }
 
+export interface TeamMemberContribution {
+  user_id: string
+  user_name: string
+  total_points: number
+  improvements_count: number
+}
+
 export interface TeamLeaderboardEntry {
   team_id: string
   team_name: string
@@ -164,6 +171,7 @@ export interface TeamLeaderboardEntry {
   members_count: number
   improvements_count: number
   rank: number
+  members: TeamMemberContribution[]
 }
 
 export type RedemptionStatus = 'pending' | 'fulfilled' | 'cancelled'

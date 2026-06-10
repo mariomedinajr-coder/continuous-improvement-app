@@ -231,7 +231,8 @@
       "teams": "Equipos"
     },
     "team": "Equipo",
-    "membersCount": "Miembros"
+    "membersCount": "Miembros",
+    "memberBreakdown": "Aportación por miembro"
   },
   "teams": {
     "title": "Equipos",

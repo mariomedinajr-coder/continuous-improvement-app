@@ -1,8 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Trophy } from 'lucide-react'
+import { Trophy, ChevronRight, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import type { LeaderboardEntry, TeamLeaderboardEntry, PointAssignment } from '../types'
+import type {
+  LeaderboardEntry,
+  TeamLeaderboardEntry,
+  TeamMemberContribution,
+  PointAssignment,
+} from '../types'
 
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -21,8 +26,16 @@ export default function Leaderboard() {
   const [tab, setTab] = useState<Tab>('individual')
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
   const [teamEntries, setTeamEntries] = useState<TeamLeaderboardEntry[]>([])
+  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const toggleTeam = (teamId: string) =>
+    setExpandedTeams(prev => {
+      const next = new Set(prev)
+      next.has(teamId) ? next.delete(teamId) : next.add(teamId)
+      return next
+    })
 
   const yearOptions = [
     CURRENT_YEAR - 2,
@@ -97,68 +110,75 @@ export default function Leaderboard() {
       setLoading(true)
       setError(null)
       try {
-        const { data, error: fetchError } = await supabase
-          .from('point_assignments')
-          .select('points, improvement_id, user:users(team_id, team:teams(id, name, area))')
-          .gte('created_at', `${year}-01-01`)
-          .lt('created_at', `${year + 1}-01-01`)
+        // All teams (so zero-point teams still rank), the full roster, and this
+        // year's point assignments — aggregated into team + per-member totals.
+        const [teamsRes, membersRes, assignRes] = await Promise.all([
+          supabase.from('teams').select('id, name, area'),
+          supabase.from('users').select('id, name, team_id').not('team_id', 'is', null),
+          supabase
+            .from('point_assignments')
+            .select('points, improvement_id, user_id')
+            .gte('created_at', `${year}-01-01`)
+            .lt('created_at', `${year + 1}-01-01`),
+        ])
 
-        if (fetchError) throw fetchError
+        if (teamsRes.error) throw teamsRes.error
+        if (membersRes.error) throw membersRes.error
+        if (assignRes.error) throw assignRes.error
 
-        type Row = {
-          points: number
-          improvement_id: string
-          user: { team_id: string | null; team: { id: string; name: string; area: string } | null } | null
-        }
-        const rows = (data ?? []) as unknown as Row[]
+        const teams = (teamsRes.data ?? []) as { id: string; name: string; area: string }[]
+        const members = (membersRes.data ?? []) as { id: string; name: string; team_id: string }[]
+        const assigns = (assignRes.data ?? []) as { points: number; improvement_id: string; user_id: string }[]
 
-        const map = new Map<string, {
-          team_name: string
-          area: string
-          total_points: number
-          improvement_ids: Set<string>
-          member_ids: Set<string>
-        }>()
-
-        for (const row of rows) {
-          const team = row.user?.team
-          const teamId = row.user?.team_id
-          if (!team || !teamId) continue
-          const existing = map.get(teamId)
+        // Points + distinct improvements per user, this year
+        const userAgg = new Map<string, { points: number; improvements: Set<string> }>()
+        for (const a of assigns) {
+          const existing = userAgg.get(a.user_id)
           if (existing) {
-            existing.total_points += row.points
-            existing.improvement_ids.add(row.improvement_id)
+            existing.points += a.points
+            existing.improvements.add(a.improvement_id)
           } else {
-            map.set(teamId, {
-              team_name: team.name,
-              area: team.area,
-              total_points: row.points,
-              improvement_ids: new Set([row.improvement_id]),
-              member_ids: new Set(),
-            })
+            userAgg.set(a.user_id, { points: a.points, improvements: new Set([a.improvement_id]) })
           }
         }
 
-        const { data: memberData } = await supabase
-          .from('users')
-          .select('id, team_id')
-          .not('team_id', 'is', null)
-
-        for (const m of (memberData ?? []) as { id: string; team_id: string }[]) {
-          map.get(m.team_id)?.member_ids.add(m.id)
+        // Roster grouped by team
+        const byTeam = new Map<string, { id: string; name: string }[]>()
+        for (const m of members) {
+          const arr = byTeam.get(m.team_id) ?? []
+          arr.push({ id: m.id, name: m.name })
+          byTeam.set(m.team_id, arr)
         }
 
-        const sorted: TeamLeaderboardEntry[] = Array.from(map.entries())
-          .map(([team_id, agg]) => ({
-            team_id,
-            team_name: agg.team_name,
-            area: agg.area,
-            total_points: agg.total_points,
-            members_count: agg.member_ids.size,
-            improvements_count: agg.improvement_ids.size,
-            rank: 0,
-          }))
-          .sort((a, b) => b.total_points - a.total_points)
+        const sorted: TeamLeaderboardEntry[] = teams
+          .map(team => {
+            const roster = byTeam.get(team.id) ?? []
+            const teamImprovements = new Set<string>()
+            const memberContribs: TeamMemberContribution[] = roster
+              .map(mem => {
+                const agg = userAgg.get(mem.id)
+                if (agg) agg.improvements.forEach(id => teamImprovements.add(id))
+                return {
+                  user_id: mem.id,
+                  user_name: mem.name,
+                  total_points: agg?.points ?? 0,
+                  improvements_count: agg?.improvements.size ?? 0,
+                }
+              })
+              .sort((a, b) => b.total_points - a.total_points || a.user_name.localeCompare(b.user_name))
+
+            return {
+              team_id: team.id,
+              team_name: team.name,
+              area: team.area,
+              total_points: memberContribs.reduce((s, m) => s + m.total_points, 0),
+              members_count: roster.length,
+              improvements_count: teamImprovements.size,
+              rank: 0,
+              members: memberContribs,
+            }
+          })
+          .sort((a, b) => b.total_points - a.total_points || a.team_name.localeCompare(b.team_name))
           .map((entry, idx) => ({ ...entry, rank: idx + 1 }))
 
         setTeamEntries(sorted)
@@ -339,10 +359,13 @@ export default function Leaderboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {teamEntries.map((entry) => (
+                {teamEntries.map((entry) => {
+                  const isExpanded = expandedTeams.has(entry.team_id)
+                  return (
+                  <Fragment key={entry.team_id}>
                   <tr
-                    key={entry.team_id}
-                    className={
+                    onClick={() => entry.members_count > 0 && toggleTeam(entry.team_id)}
+                    className={`${
                       entry.rank === 1
                         ? 'bg-yellow-50 hover:bg-yellow-100'
                         : entry.rank === 2
@@ -350,7 +373,7 @@ export default function Leaderboard() {
                         : entry.rank === 3
                         ? 'bg-orange-50 hover:bg-orange-100'
                         : 'hover:bg-gray-50'
-                    }
+                    } ${entry.members_count > 0 ? 'cursor-pointer' : ''}`}
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
@@ -371,7 +394,16 @@ export default function Leaderboard() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-semibold text-gray-900">{entry.team_name}</span>
+                      <div className="flex items-center gap-2">
+                        {entry.members_count > 0 ? (
+                          isExpanded
+                            ? <ChevronDown size={16} className="text-gray-400 shrink-0" />
+                            : <ChevronRight size={16} className="text-gray-400 shrink-0" />
+                        ) : (
+                          <span className="w-4 shrink-0" />
+                        )}
+                        <span className="text-sm font-semibold text-gray-900">{entry.team_name}</span>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-gray-600">{entry.area || '—'}</span>
@@ -389,7 +421,35 @@ export default function Leaderboard() {
                       </span>
                     </td>
                   </tr>
-                ))}
+                  {isExpanded && (
+                    <tr className="bg-gray-50/60">
+                      <td colSpan={6} className="px-6 py-0">
+                        <div className="py-3 pl-8">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">
+                            {t('leaderboard.memberBreakdown')}
+                          </p>
+                          <ul className="divide-y divide-gray-200/70">
+                            {entry.members.map((m) => (
+                              <li key={m.user_id} className="flex items-center justify-between py-1.5">
+                                <span className="text-sm text-gray-700">{m.user_name}</span>
+                                <span className="flex items-center gap-4">
+                                  <span className="text-xs text-gray-400">
+                                    {m.improvements_count} {t('leaderboard.improvements').toLowerCase()}
+                                  </span>
+                                  <span className={`text-sm font-semibold tabular-nums ${m.total_points > 0 ? 'text-blue-700' : 'text-gray-300'}`}>
+                                    {m.total_points} {t('common.points')}
+                                  </span>
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  )
+                })}
               </tbody>
             </table>
           </div>

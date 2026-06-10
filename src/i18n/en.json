@@ -231,7 +231,8 @@
       "teams": "Teams"
     },
     "team": "Team",
-    "membersCount": "Members"
+    "membersCount": "Members",
+    "memberBreakdown": "Member contribution"
   },
   "teams": {
     "title": "Teams",
